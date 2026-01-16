@@ -1,0 +1,8 @@
+{
+  "name": "Serenity BPO Recruitment",
+  "description": "AI-powered recruitment platform for high-volume BPO hiring. Features candidate interviewing, automated scoring, and company matching portals.",
+  "requestFramePermissions": [
+    "camera",
+    "microphone"
+  ]
+}
