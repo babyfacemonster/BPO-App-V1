@@ -1,14 +1,15 @@
 
 import React, { useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../authContext';
 import { db } from '../../db';
 import { Candidate, InterviewSession, InterviewStatus, Application, InterviewRecommendation, Program } from '../../types';
-import { Button, Card, CardContent, CardHeader, CardTitle, Badge } from '../../ui';
-import { FileText, PlayCircle, Clock, CheckCircle, Upload, Award, Zap, TrendingUp, Briefcase, ChevronRight, Lightbulb, UserCheck, Star, Target } from 'lucide-react';
+import { Button, Card, CardContent, CardHeader, CardTitle, Badge, Tooltip } from '../../ui';
+import { FileText, PlayCircle, Clock, CheckCircle, Upload, Award, Zap, TrendingUp, Briefcase, ChevronRight, Lightbulb, UserCheck, Star, Target, Info, List } from 'lucide-react';
 
 export default function CandidateDashboard() {
   const { user } = useAuth();
+  const navigate = useNavigate();
   const [candidate, setCandidate] = useState<Candidate | null>(null);
   const [interview, setInterview] = useState<InterviewSession | null>(null);
   const [matches, setMatches] = useState<(Application & { program: Program })[]>([]);
@@ -46,6 +47,9 @@ export default function CandidateDashboard() {
     <div className="space-y-6">
       <div className="flex justify-between items-center">
         <h1 className="text-2xl font-bold text-gray-900">Welcome back, {candidate.fullName.split(' ')[0]}</h1>
+        <Button variant="outline" onClick={() => navigate('/candidate/applications')}>
+            <List className="h-4 w-4 mr-2" /> My Applications
+        </Button>
       </div>
 
       {!hasCV && (
@@ -69,6 +73,9 @@ export default function CandidateDashboard() {
             <CardTitle className="flex items-center gap-2">
               <ActivityIcon status={interview?.status} />
               AI Readiness Interview
+              <Tooltip content="A 15-minute voice interview to assess your BPO skills.">
+                <Info className="h-4 w-4 text-gray-400 cursor-help" />
+              </Tooltip>
             </CardTitle>
           </CardHeader>
           <CardContent>
@@ -85,7 +92,9 @@ export default function CandidateDashboard() {
               <div className="space-y-4">
                 <div className="flex justify-between items-center border-b pb-4">
                   <span className="text-gray-600">Status</span>
-                  <Badge variant="success">Complete</Badge>
+                  <Tooltip content="Your interview has been analyzed and scored by our AI.">
+                    <Badge variant="success">Complete</Badge>
+                  </Tooltip>
                 </div>
                 {/* Transparent feedback: Show Role Fit instead of raw score for friendliness */}
                 {interview.feedbackForCandidate?.role_fit_analysis && (
@@ -98,7 +107,9 @@ export default function CandidateDashboard() {
                 )}
                 <div className="flex justify-between items-center">
                   <span className="text-gray-600">Overall Readiness</span>
-                  {getRecBadge(interview.recommendation)}
+                  <Tooltip content="This tier determines which companies can see your profile.">
+                    <div>{getRecBadge(interview.recommendation)}</div>
+                  </Tooltip>
                 </div>
                 {interview.recommendation !== InterviewRecommendation.NOT_RECOMMENDED_YET && (
                   <div className="mt-4 p-3 bg-green-50 text-green-800 text-sm rounded-md">
@@ -123,6 +134,9 @@ export default function CandidateDashboard() {
             <CardHeader>
                <CardTitle className="flex items-center gap-2">
                   <Zap className="h-5 w-5 text-yellow-500" /> Career Insights
+                  <Tooltip content="Personalized feedback generated from your interview performance.">
+                     <Info className="h-4 w-4 text-gray-400 cursor-help" />
+                  </Tooltip>
                </CardTitle>
             </CardHeader>
             <CardContent>
@@ -180,6 +194,9 @@ export default function CandidateDashboard() {
                      <div className="pt-2 border-t">
                         <h4 className="text-sm font-bold text-indigo-800 flex items-center gap-1 mb-3 mt-2">
                            <Award className="h-4 w-4" /> Recommended Coaching
+                           <Tooltip content="Optional paid services to improve your profile score.">
+                              <Info className="h-3 w-3 ml-2 text-indigo-400 cursor-help" />
+                           </Tooltip>
                         </h4>
                         <div className="space-y-3">
                            {interview.feedbackForCandidate.coaching_offers.map((offer, i) => (
@@ -207,16 +224,21 @@ export default function CandidateDashboard() {
           <Card className="md:col-span-2">
             <CardHeader>
                <CardTitle className="flex items-center gap-2">
-                 <Briefcase className="h-5 w-5 text-emerald-600" /> Matched Programs ({matches.length})
+                 <Briefcase className="h-5 w-5 text-emerald-600" /> Matched Roles ({matches.length})
+                 <Tooltip content="Jobs where your skills and interview score are a strong fit.">
+                    <Info className="h-4 w-4 text-gray-400 cursor-help" />
+                 </Tooltip>
                </CardTitle>
             </CardHeader>
             <CardContent>
                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                  {matches.map(match => (
                     <div key={match.id} className="border rounded-lg p-4 hover:shadow-md transition-shadow relative overflow-hidden bg-white">
-                       <div className={`absolute top-0 right-0 px-3 py-1 text-xs font-bold text-white rounded-bl-lg ${match.matchTier === 'strong' ? 'bg-emerald-500' : match.matchTier === 'medium' ? 'bg-yellow-500' : 'bg-gray-400'}`}>
-                         {match.matchScore}% Match
-                       </div>
+                       <Tooltip content={`Match Score: ${match.matchScore}/100 based on Skills + Interview.`} side="left">
+                         <div className={`absolute top-0 right-0 px-3 py-1 text-xs font-bold text-white rounded-bl-lg cursor-help ${match.matchTier === 'strong' ? 'bg-emerald-500' : match.matchTier === 'medium' ? 'bg-yellow-500' : 'bg-gray-400'}`}>
+                           {match.matchScore}% Match
+                         </div>
+                       </Tooltip>
                        <h4 className="font-bold text-lg mt-2 pr-12">{match.program.title}</h4>
                        <p className="text-sm text-gray-500 mb-2">{match.program.location} • {match.program.type.replace('_', ' ')}</p>
                        
@@ -248,6 +270,9 @@ export default function CandidateDashboard() {
             <CardTitle className="flex items-center gap-2">
               <FileText className="h-5 w-5 text-gray-500" />
               Profile Summary
+              <Tooltip content="Details extracted automatically from your uploaded CV.">
+                <Info className="h-4 w-4 text-gray-400 cursor-help" />
+              </Tooltip>
             </CardTitle>
           </CardHeader>
           <CardContent>

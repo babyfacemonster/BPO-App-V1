@@ -15,7 +15,7 @@ const SEED_USERS: User[] = [
 ];
 
 const SEED_COMPANIES: Company[] = [
-  { id: 'c1', name: 'Global Connect BPO', industry: 'Telecommunications' }
+  { id: 'c1', name: 'Global Connect BPO', industry: 'Telecommunications', archivedCandidateIds: [], createdAt: new Date().toISOString() }
 ];
 
 const SEED_CANDIDATE: Candidate = {
@@ -24,6 +24,7 @@ const SEED_CANDIDATE: Candidate = {
   fullName: 'Alex Rivera',
   phone: '+1 555 0101',
   location: 'Remote / New York',
+  createdAt: new Date().toISOString(),
   profile: {
     headline: "Customer Support Specialist",
     summary: "Experienced support agent with 2 years in retail.",
@@ -72,22 +73,21 @@ const SEED_CANDIDATE: Candidate = {
   }
 };
 
-// Additional Mock Candidates to populate Company Dashboard
 const EXTRA_CANDIDATES: Candidate[] = [
     {
-        id: 'cand2', userId: 'u_mock_2', fullName: 'Jordan Lee', phone: '+1 555 0102', location: 'Manila',
+        id: 'cand2', userId: 'u_mock_2', fullName: 'Jordan Lee', phone: '+1 555 0102', location: 'Manila', createdAt: new Date().toISOString(),
         profile: { headline: 'Tech Support', summary: 'IT Grad', skills: ['Tech Savvy', 'English', 'Python', 'Troubleshooting'], languages: ['English'], certifications: [], work_history: [], education: [], gap_analysis: { gaps: [], job_hopping_risk: 'low' }, totals: { total_years_experience_estimate: 1, total_customer_service_years_estimate: 0, most_recent_role_title: 'Student', most_recent_company: 'Uni' }, extraction_quality: { confidence: 1, missing_fields: [] } }
     },
     {
-        id: 'cand3', userId: 'u_mock_3', fullName: 'Casey Smith', phone: '+1 555 0103', location: 'Remote',
+        id: 'cand3', userId: 'u_mock_3', fullName: 'Casey Smith', phone: '+1 555 0103', location: 'Remote', createdAt: new Date().toISOString(),
         profile: { headline: 'Sales Rep', summary: 'Driven sales agent', skills: ['Sales', 'Persuasion', 'Cold Calling'], languages: ['English'], certifications: [], work_history: [], education: [], gap_analysis: { gaps: [], job_hopping_risk: 'medium' }, totals: { total_years_experience_estimate: 3, total_customer_service_years_estimate: 3, most_recent_role_title: 'Sales Rep', most_recent_company: 'Solar Co' }, extraction_quality: { confidence: 1, missing_fields: [] } }
     },
     {
-        id: 'cand4', userId: 'u_mock_4', fullName: 'Taylor Doe', phone: '+1 555 0104', location: 'Remote',
+        id: 'cand4', userId: 'u_mock_4', fullName: 'Taylor Doe', phone: '+1 555 0104', location: 'Remote', createdAt: new Date().toISOString(),
         profile: { headline: 'Admin Asst', summary: 'Organized admin', skills: ['Data Entry', 'Typing 80WPM', 'Excel'], languages: ['English'], certifications: [], work_history: [], education: [], gap_analysis: { gaps: [], job_hopping_risk: 'low' }, totals: { total_years_experience_estimate: 5, total_customer_service_years_estimate: 0, most_recent_role_title: 'Admin', most_recent_company: 'Logistics LLC' }, extraction_quality: { confidence: 1, missing_fields: [] } }
     },
     {
-        id: 'cand5', userId: 'u_mock_5', fullName: 'Morgan Freeman', phone: '+1 555 0105', location: 'New York',
+        id: 'cand5', userId: 'u_mock_5', fullName: 'Morgan Freeman', phone: '+1 555 0105', location: 'New York', createdAt: new Date().toISOString(),
         profile: { headline: 'Customer Care', summary: 'Empathetic agent', skills: ['Customer Service', 'Empathy', 'De-escalation'], languages: ['English'], certifications: [], work_history: [], education: [], gap_analysis: { gaps: [], job_hopping_risk: 'low' }, totals: { total_years_experience_estimate: 2, total_customer_service_years_estimate: 2, most_recent_role_title: 'Support', most_recent_company: 'Helpdesk Inc' }, extraction_quality: { confidence: 1, missing_fields: [] } }
     }
 ];
@@ -148,7 +148,6 @@ class MockDB {
       this.set('candidates', allCandidates);
       this.set('programs', SEED_PROGRAMS);
       
-      // Generate mock interviews for extra candidates to populate dashboards
       const mockInterviews: InterviewSession[] = EXTRA_CANDIDATES.map((c, i) => ({
           id: `int_mock_${i}`,
           candidateId: c.id,
@@ -182,11 +181,9 @@ class MockDB {
 
       this.set('interviews', mockInterviews);
       
-      // Generate applications for mock candidates
       const mockApps: Application[] = [];
       mockInterviews.forEach(int => {
           SEED_PROGRAMS.forEach(prog => {
-               // Simple mock matching logic for seed
                let score = 75;
                if (prog.type === ProgramType.TECH_SUPPORT && int.scores.process > 0.8) score = 92;
                if (prog.type === ProgramType.OUTBOUND_SALES && int.scores.sales > 0.8) score = 88;
@@ -238,7 +235,6 @@ class MockDB {
     else interviews.push(session);
     this.set('interviews', interviews);
     
-    // Trigger auto-match if complete
     if (session.status === InterviewStatus.COMPLETE) {
       await this.runAutoMatch(session.candidateId);
     }
@@ -249,7 +245,6 @@ class MockDB {
     cvs.push(cv);
     this.set('cvs', cvs);
 
-    // Update candidate profile
     const candidates = this.get<Candidate[]>('candidates', []);
     const idx = candidates.findIndex(c => c.id === cv.candidateId);
     if (idx >= 0) {
@@ -270,12 +265,9 @@ class MockDB {
     
     if (!candidate || !candidate.profile || !interview || interview.recommendation === InterviewRecommendation.NOT_RECOMMENDED_YET) return;
 
-    // Run Match Ranking
     const matches = await aiService.rankPrograms(candidate.profile, interview, programs);
 
-    // Persist matches as applications
     matches.forEach(match => {
-      // Don't duplicate
       if (applications.find(a => a.candidateId === candidateId && a.programId === match.programId)) return;
       
       const newApp: Application = {
@@ -320,6 +312,21 @@ class MockDB {
     return program;
   }
 
+  async updateProgram(updatedProgram: Program) {
+    const programs = this.get<Program[]>('programs', []);
+    const idx = programs.findIndex(p => p.id === updatedProgram.id);
+    if (idx >= 0) {
+      programs[idx] = { ...updatedProgram, updatedAt: new Date().toISOString() };
+      this.set('programs', programs);
+    }
+  }
+
+  async deleteProgram(programId: string) {
+    let programs = this.get<Program[]>('programs', []);
+    programs = programs.filter(p => p.id !== programId);
+    this.set('programs', programs);
+  }
+
   async getProgramApplications(programId: string): Promise<(Application & { candidate: Candidate, interview: InterviewSession })[]> {
     const apps = this.get<Application[]>('applications', []);
     const candidates = this.get<Candidate[]>('candidates', []);
@@ -335,7 +342,6 @@ class MockDB {
       .filter(a => a.candidate && a.interview);
   }
 
-  // Get ALL applications for a company (for Dashboard "Candidate Pool" view)
   async getCompanyApplications(companyId: string): Promise<(Application & { candidate: Candidate, interview: InterviewSession, program: Program })[]> {
     const programs = await this.getCompanyPrograms(companyId);
     const programIds = new Set(programs.map(p => p.id));
@@ -343,7 +349,12 @@ class MockDB {
     const candidates = this.get<Candidate[]>('candidates', []);
     const interviews = this.get<InterviewSession[]>('interviews', []);
 
-    return apps
+    // Get company to check archived list
+    const companies = this.get<Company[]>('companies', []);
+    const company = companies.find(c => c.id === companyId);
+    const archivedIds = new Set(company?.archivedCandidateIds || []);
+
+    const result = apps
       .filter(a => programIds.has(a.programId))
       .map(app => ({
         ...app,
@@ -352,9 +363,34 @@ class MockDB {
         program: programs.find(p => p.id === app.programId)!
       }))
       .filter(a => a.candidate && a.interview && a.program);
+
+    return result;
   }
 
-  // Update Application Decision
+  // Toggle Archive Status for a Candidate
+  async toggleArchiveCandidate(companyId: string, candidateId: string) {
+    const companies = this.get<Company[]>('companies', []);
+    const idx = companies.findIndex(c => c.id === companyId);
+    if (idx >= 0) {
+      const company = companies[idx];
+      const archived = new Set(company.archivedCandidateIds || []);
+      if (archived.has(candidateId)) {
+        archived.delete(candidateId);
+      } else {
+        archived.add(candidateId);
+      }
+      company.archivedCandidateIds = Array.from(archived);
+      companies[idx] = company;
+      this.set('companies', companies);
+    }
+  }
+
+  async getArchivedCandidateIds(companyId: string): Promise<string[]> {
+    const companies = this.get<Company[]>('companies', []);
+    const company = companies.find(c => c.id === companyId);
+    return company?.archivedCandidateIds || [];
+  }
+
   async updateApplicationStatus(appId: string, status: ApplicationStatus, reason?: string, note?: string) {
     const apps = this.get<Application[]>('applications', []);
     const idx = apps.findIndex(a => a.id === appId);
@@ -374,6 +410,16 @@ class MockDB {
       interviews: this.get<InterviewSession[]>('interviews', []).length,
       programs: this.get<Program[]>('programs', []).length,
       applications: this.get<Application[]>('applications', []).length
+    };
+  }
+
+  async getAdminFullData() {
+    return {
+      companies: this.get<Company[]>('companies', []),
+      programs: this.get<Program[]>('programs', []),
+      candidates: this.get<Candidate[]>('candidates', []),
+      interviews: this.get<InterviewSession[]>('interviews', []),
+      applications: this.get<Application[]>('applications', [])
     };
   }
 

@@ -4,8 +4,8 @@ import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../authContext';
 import { db } from '../../db';
 import { Company, Application, Program, InterviewRecommendation, ProgramStatus, ApplicationStatus } from '../../types';
-import { Button, Card, CardContent, CardHeader, CardTitle, Badge, Input } from '../../ui';
-import { Plus, Users, Search, Filter, Briefcase, CheckCircle, Clock, ShieldCheck, ChevronRight } from 'lucide-react';
+import { Button, Card, CardContent, CardHeader, CardTitle, Badge, Input, Tooltip } from '../../ui';
+import { Plus, Users, Search, Filter, Briefcase, CheckCircle, Clock, ShieldCheck, ChevronRight, Info, Archive, RotateCcw } from 'lucide-react';
 
 export default function CompanyDashboard() {
   const { user } = useAuth();
@@ -13,21 +13,28 @@ export default function CompanyDashboard() {
   const [company, setCompany] = useState<Company | null>(null);
   const [allApplications, setAllApplications] = useState<(Application & { candidate: any, interview: any, program: any })[]>([]);
   const [filteredApps, setFilteredApps] = useState<(Application & { candidate: any, interview: any, program: any })[]>([]);
+  const [archivedIds, setArchivedIds] = useState<Set<string>>(new Set());
   
   // Filters
   const [search, setSearch] = useState('');
   const [tierFilter, setTierFilter] = useState<string>('ALL');
+  const [viewMode, setViewMode] = useState<'ACTIVE' | 'ARCHIVED'>('ACTIVE');
 
   useEffect(() => {
     if (!user) return;
     const load = async () => {
       const companies = JSON.parse(localStorage.getItem('serenity_companies') || '[]');
       if (companies.length > 0) {
-        setCompany(companies[0]);
+        const comp = companies[0];
+        setCompany(comp);
         // Fetch ALL applications across all programs for the "Candidate Pool" view
-        const apps = await db.getCompanyApplications(companies[0].id);
+        const apps = await db.getCompanyApplications(comp.id);
+        
+        // Also load archive state
+        const archived = await db.getArchivedCandidateIds(comp.id);
+        setArchivedIds(new Set(archived));
+        
         setAllApplications(apps);
-        setFilteredApps(apps);
       }
     };
     load();
@@ -37,19 +44,42 @@ export default function CompanyDashboard() {
   useEffect(() => {
     let result = allApplications;
 
+    // Search
     if (search) {
       result = result.filter(a => a.candidate.fullName.toLowerCase().includes(search.toLowerCase()));
     }
 
+    // Tier
     if (tierFilter !== 'ALL') {
       result = result.filter(a => a.interview.recommendation === tierFilter);
+    }
+
+    // View Mode (Active vs Archived)
+    if (viewMode === 'ACTIVE') {
+      result = result.filter(a => !archivedIds.has(a.candidateId));
+    } else {
+      result = result.filter(a => archivedIds.has(a.candidateId));
     }
 
     // Default Sort: Score Desc
     result.sort((a, b) => b.matchScore - a.matchScore);
 
     setFilteredApps(result);
-  }, [search, tierFilter, allApplications]);
+  }, [search, tierFilter, allApplications, viewMode, archivedIds]);
+
+  const toggleArchive = async (candidateId: string) => {
+    if (!company) return;
+    await db.toggleArchiveCandidate(company.id, candidateId);
+    
+    // Update local state immediately
+    const newArchivedIds = new Set(archivedIds);
+    if (newArchivedIds.has(candidateId)) {
+      newArchivedIds.delete(candidateId);
+    } else {
+      newArchivedIds.add(candidateId);
+    }
+    setArchivedIds(newArchivedIds);
+  };
 
   if (!company) return <div className="p-8">Loading dashboard...</div>;
 
@@ -67,14 +97,13 @@ export default function CompanyDashboard() {
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">{company.name} Recruiting</h1>
-          <p className="text-gray-500">Overview of your candidate pipeline and active programs.</p>
+          <p className="text-gray-500">Overview of your candidate pipeline and active roles.</p>
         </div>
         <div className="flex gap-3">
-             {/* Note: In a real app, this might toggle views or go to a separate programs list page */}
-             <Button variant="outline" onClick={() => navigate('/company/create-program')}>
-                <Briefcase className="h-4 w-4 mr-2" /> Manage Programs
+             <Button variant="outline" onClick={() => navigate('/company/roles')}>
+                <Briefcase className="h-4 w-4 mr-2" /> Manage Roles
              </Button>
-             <Link to="/company/create-program">
+             <Link to="/company/roles/new">
                 <Button>
                     <Plus className="h-4 w-4 mr-2" /> New Role
                 </Button>
@@ -88,32 +117,55 @@ export default function CompanyDashboard() {
             title="Total Candidates" 
             value={allApplications.length} 
             icon={<Users className="h-5 w-5 text-indigo-600" />} 
+            tooltip="Total number of candidates matched to your open roles."
         />
         <StatCard 
             title="Hire Ready" 
             value={hireReadyCount} 
             icon={<CheckCircle className="h-5 w-5 text-emerald-600" />} 
+            tooltip="Candidates scoring >75% with no critical risk flags."
         />
         <StatCard 
             title="Awaiting Review" 
             value={reviewCount} 
             icon={<Clock className="h-5 w-5 text-orange-600" />} 
+            tooltip="Candidates in 'Suggested' or 'Applied' status needing attention."
         />
         <StatCard 
             title="Avg Interview Score" 
             value={avgScore} 
             suffix="/ 100"
             icon={<Briefcase className="h-5 w-5 text-blue-600" />} 
+            tooltip="Mean interview score across your entire candidate pool."
         />
       </div>
 
       {/* Candidate List Section */}
       <Card className="border shadow-sm">
         <CardHeader className="pb-3 border-b bg-gray-50/50">
-           <div className="flex flex-col md:flex-row justify-between items-center gap-4">
-               <CardTitle>Candidate Pool</CardTitle>
-               <div className="flex gap-3 w-full md:w-auto">
-                   <div className="relative flex-1 md:w-64">
+           <div className="flex flex-col gap-4">
+               <div className="flex flex-col md:flex-row justify-between items-center gap-4">
+                   <CardTitle>Candidate Pool</CardTitle>
+                   
+                   {/* View Mode Toggle */}
+                   <div className="flex bg-gray-200 rounded-lg p-1 text-xs font-medium">
+                      <button 
+                        className={`px-3 py-1 rounded-md transition-all ${viewMode === 'ACTIVE' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
+                        onClick={() => setViewMode('ACTIVE')}
+                      >
+                        Active
+                      </button>
+                      <button 
+                        className={`px-3 py-1 rounded-md transition-all ${viewMode === 'ARCHIVED' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
+                        onClick={() => setViewMode('ARCHIVED')}
+                      >
+                        Archived
+                      </button>
+                   </div>
+               </div>
+               
+               <div className="flex gap-3 w-full">
+                   <div className="relative flex-1">
                        <Search className="absolute left-2 top-2.5 h-4 w-4 text-gray-400" />
                        <Input 
                         placeholder="Search candidates..." 
@@ -122,7 +174,7 @@ export default function CompanyDashboard() {
                         onChange={(e) => setSearch(e.target.value)}
                        />
                    </div>
-                   <div className="relative">
+                   <div className="relative w-48">
                        <Filter className="absolute left-2 top-2.5 h-4 w-4 text-gray-400" />
                        <select 
                         className="h-9 w-full rounded-md border border-gray-300 bg-transparent pl-8 pr-3 py-1 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-indigo-500"
@@ -144,9 +196,16 @@ export default function CompanyDashboard() {
                     <thead className="bg-gray-50 text-gray-600 font-medium border-b">
                         <tr>
                             <th className="px-6 py-3">Candidate</th>
-                            <th className="px-6 py-3">Readiness Tier</th>
+                            <th className="px-6 py-3">
+                                <div className="flex items-center gap-1">
+                                    Readiness Tier
+                                    <Tooltip content="AI assessment based on BPO competency scoring.">
+                                        <Info className="h-3 w-3 text-gray-400" />
+                                    </Tooltip>
+                                </div>
+                            </th>
                             <th className="px-6 py-3">Assessment Summary</th>
-                            <th className="px-6 py-3">Program Fit</th>
+                            <th className="px-6 py-3">Role Fit</th>
                             <th className="px-6 py-3">Status</th>
                             <th className="px-6 py-3 text-right">Actions</th>
                         </tr>
@@ -155,7 +214,7 @@ export default function CompanyDashboard() {
                         {filteredApps.length === 0 ? (
                             <tr>
                                 <td colSpan={6} className="px-6 py-12 text-center text-gray-500">
-                                    No candidates match your filters.
+                                    No candidates found in this view.
                                 </td>
                             </tr>
                         ) : (
@@ -183,13 +242,24 @@ export default function CompanyDashboard() {
                                         <StatusBadge status={app.status} />
                                     </td>
                                     <td className="px-6 py-4 text-right">
-                                        <Button 
-                                            size="sm" 
-                                            variant="outline"
-                                            onClick={() => navigate(`/company/applications/${app.id}`)}
-                                        >
-                                            View Details
-                                        </Button>
+                                        <div className="flex justify-end gap-2">
+                                            <Tooltip content={viewMode === 'ACTIVE' ? "Archive (Hide)" : "Unarchive"}>
+                                                <Button 
+                                                    size="sm" 
+                                                    variant="ghost" 
+                                                    onClick={() => toggleArchive(app.candidateId)}
+                                                >
+                                                    {viewMode === 'ACTIVE' ? <Archive className="h-4 w-4" /> : <RotateCcw className="h-4 w-4" />}
+                                                </Button>
+                                            </Tooltip>
+                                            <Button 
+                                                size="sm" 
+                                                variant="outline"
+                                                onClick={() => navigate(`/company/applications/${app.id}`)}
+                                            >
+                                                View
+                                            </Button>
+                                        </div>
                                     </td>
                                 </tr>
                             ))
@@ -218,12 +288,19 @@ export default function CompanyDashboard() {
   );
 }
 
-// Sub-components for cleaner code
-const StatCard = ({ title, value, suffix = '', icon }: { title: string, value: number, suffix?: string, icon?: React.ReactNode }) => (
+// Sub-components
+const StatCard = ({ title, value, suffix = '', icon, tooltip }: { title: string, value: number, suffix?: string, icon?: React.ReactNode, tooltip?: string }) => (
     <Card>
       <CardContent className="p-6 flex items-start justify-between">
         <div>
-          <p className="text-sm font-medium text-gray-500">{title}</p>
+          <div className="flex items-center gap-2">
+            <p className="text-sm font-medium text-gray-500">{title}</p>
+            {tooltip && (
+                <Tooltip content={tooltip}>
+                    <Info className="h-3 w-3 text-gray-400 cursor-help" />
+                </Tooltip>
+            )}
+          </div>
           <p className="text-3xl font-bold mt-2 text-gray-900">{value}<span className="text-lg text-gray-400 font-normal">{suffix}</span></p>
         </div>
         {icon && <div className="p-2 bg-gray-50 rounded-lg">{icon}</div>}

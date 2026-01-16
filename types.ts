@@ -45,7 +45,7 @@ export enum ApplicationStatus {
   SUGGESTED = 'SUGGESTED',
   APPLIED = 'APPLIED',
   SHORTLISTED = 'SHORTLISTED',
-  INTERVIEW_REQUESTED = 'INTERVIEW_REQUESTED', // New
+  INTERVIEW_REQUESTED = 'INTERVIEW_REQUESTED', 
   ACCEPTED = 'ACCEPTED',
   REJECTED = 'REJECTED'
 }
@@ -62,6 +62,8 @@ export interface Company {
   id: string;
   name: string;
   industry: string;
+  archivedCandidateIds?: string[]; // New: For hiding candidates
+  createdAt?: string;
 }
 
 export interface WorkHistoryItem {
@@ -129,6 +131,7 @@ export interface Candidate {
   cvId?: string;
   cvUrl?: string; 
   profile?: CandidateProfile;
+  createdAt?: string;
 }
 
 export interface CandidateCV {
@@ -264,6 +267,7 @@ export interface Program {
   dealBreakers?: string[]; // New: Critical criteria
   status: ProgramStatus;
   createdAt: string;
+  updatedAt?: string;
 }
 
 export interface MatchBreakdown {

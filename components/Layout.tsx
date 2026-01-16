@@ -1,3 +1,4 @@
+
 import React from 'react';
 import { useAuth } from '../authContext';
 import { Button } from '../ui';
@@ -12,11 +13,13 @@ export const Layout = ({ children, portal }: { children?: React.ReactNode, porta
       case 'candidate':
         return [
           { label: 'Dashboard', path: '/candidate' },
+          { label: 'My Applications', path: '/candidate/applications' },
           { label: 'My Interview', path: '/candidate/interview' },
         ];
       case 'company':
         return [
-          { label: 'Programs', path: '/company' },
+          { label: 'Candidates', path: '/company' },
+          { label: 'Roles', path: '/company/roles' },
         ];
       case 'admin':
         return [

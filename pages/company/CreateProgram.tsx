@@ -1,12 +1,12 @@
 
-import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import React, { useState, useEffect } from 'react';
+import { useNavigate, useParams } from 'react-router-dom';
 import { useAuth } from '../../authContext';
 import { db } from '../../db';
-import { ProgramStatus, ProgramType } from '../../types';
+import { Program, ProgramStatus, ProgramType } from '../../types';
 import { PROGRAM_DEFINITIONS } from '../../constants';
 import { Button, Card, CardContent, CardHeader, CardTitle, Input } from '../../ui';
-import { ArrowLeft, Info } from 'lucide-react';
+import { ArrowLeft, Info, Save } from 'lucide-react';
 import { z } from 'zod';
 
 const programSchema = z.object({
@@ -19,31 +19,64 @@ const programSchema = z.object({
   dealBreakers: z.string().optional(),
 });
 
-export default function CreateProgram() {
+export default function RoleEditor() {
   const { user } = useAuth();
   const navigate = useNavigate();
+  const { id } = useParams<{ id: string }>(); // If ID exists, we are editing
+  
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [selectedType, setSelectedType] = useState<ProgramType>(ProgramType.INBOUND_SUPPORT);
+  const [status, setStatus] = useState<ProgramStatus>(ProgramStatus.LIVE);
+  
+  // Form State
+  const [formDataState, setFormDataState] = useState({
+     title: '',
+     description: '',
+     location: '',
+     headcountNeeded: '10',
+     mustHaveSkills: '',
+     niceToHaveSkills: '',
+     dealBreakers: ''
+  });
+
+  useEffect(() => {
+    if (id) {
+       // Load existing role
+       const load = async () => {
+           const companies = JSON.parse(localStorage.getItem('serenity_companies') || '[]');
+           if (companies.length > 0) {
+               const programs = await db.getCompanyPrograms(companies[0].id);
+               const p = programs.find(p => p.id === id);
+               if (p) {
+                   setSelectedType(p.type);
+                   setStatus(p.status);
+                   setFormDataState({
+                       title: p.title,
+                       description: p.description,
+                       location: p.location,
+                       headcountNeeded: p.headcountNeeded.toString(),
+                       mustHaveSkills: p.mustHaveSkills.join(', '),
+                       niceToHaveSkills: p.niceToHaveSkills.join(', '),
+                       dealBreakers: p.dealBreakers?.join(', ') || ''
+                   });
+               }
+           }
+       };
+       load();
+    }
+  }, [id]);
+
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+      setFormDataState({ ...formDataState, [e.target.name]: e.target.value });
+  };
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setIsSubmitting(true);
     setErrors({});
 
-    const formData = new FormData(e.currentTarget);
-    const data = {
-      title: formData.get('title') as string,
-      description: formData.get('description') as string,
-      location: formData.get('location') as string,
-      type: selectedType,
-      headcountNeeded: formData.get('headcountNeeded'),
-      mustHaveSkills: formData.get('mustHaveSkills'),
-      niceToHaveSkills: formData.get('niceToHaveSkills'),
-      dealBreakers: formData.get('dealBreakers'),
-    };
-
-    const result = programSchema.safeParse(data);
+    const result = programSchema.safeParse(formDataState);
 
     if (!result.success) {
       const formattedErrors: Record<string, string> = {};
@@ -55,7 +88,7 @@ export default function CreateProgram() {
       return;
     }
 
-    // Get company ID (Mock: assume user is linked to first company)
+    // Get company ID
     const companies = JSON.parse(localStorage.getItem('serenity_companies') || '[]');
     const companyId = companies[0]?.id;
 
@@ -65,42 +98,59 @@ export default function CreateProgram() {
       return;
     }
 
-    await db.createProgram({
-      id: `p_${Date.now()}`,
+    const payload: Program = {
+      id: id || `p_${Date.now()}`,
       companyId,
-      title: data.title,
-      description: data.description,
-      location: data.location,
-      type: data.type,
-      headcountNeeded: Number(data.headcountNeeded),
-      mustHaveSkills: (data.mustHaveSkills as string).split(',').map(s => s.trim()),
-      niceToHaveSkills: (data.niceToHaveSkills as string ? (data.niceToHaveSkills as string).split(',').map(s => s.trim()) : []),
-      dealBreakers: (data.dealBreakers as string ? (data.dealBreakers as string).split(',').map(s => s.trim()) : []),
-      status: ProgramStatus.LIVE,
-      createdAt: new Date().toISOString()
-    });
+      title: formDataState.title,
+      description: formDataState.description,
+      location: formDataState.location,
+      type: selectedType,
+      headcountNeeded: Number(formDataState.headcountNeeded),
+      mustHaveSkills: formDataState.mustHaveSkills.split(',').map(s => s.trim()),
+      niceToHaveSkills: (formDataState.niceToHaveSkills ? formDataState.niceToHaveSkills.split(',').map(s => s.trim()) : []),
+      dealBreakers: (formDataState.dealBreakers ? formDataState.dealBreakers.split(',').map(s => s.trim()) : []),
+      status: status,
+      createdAt: id ? undefined : new Date().toISOString(), // Only set on create
+    } as Program; // Type assertion since we might be updating
 
-    navigate('/company');
+    if (id) {
+        await db.updateProgram(payload);
+    } else {
+        await db.createProgram(payload);
+    }
+
+    navigate('/company/roles');
   };
 
   const selectedDef = PROGRAM_DEFINITIONS[selectedType];
 
   return (
     <div className="max-w-3xl mx-auto space-y-6">
-      <Button variant="ghost" onClick={() => navigate('/company')} className="pl-0">
-        <ArrowLeft className="h-4 w-4 mr-2" /> Back to Dashboard
+      <Button variant="ghost" onClick={() => navigate('/company/roles')} className="pl-0">
+        <ArrowLeft className="h-4 w-4 mr-2" /> Back to Roles
       </Button>
 
       <Card>
-        <CardHeader>
-          <CardTitle>Create New Program</CardTitle>
+        <CardHeader className="flex flex-row justify-between items-center">
+          <CardTitle>{id ? 'Edit Role' : 'Create New Role'}</CardTitle>
+          {id && (
+             <select 
+               className="text-sm border-gray-300 rounded-md"
+               value={status}
+               onChange={(e) => setStatus(e.target.value as ProgramStatus)}
+             >
+                 <option value={ProgramStatus.LIVE}>Live</option>
+                 <option value={ProgramStatus.CLOSED}>Closed</option>
+                 <option value={ProgramStatus.DRAFT}>Draft</option>
+             </select>
+          )}
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-6">
             
-            {/* Program Type Selection with Rich Details */}
+            {/* Program Type Selection */}
             <div className="space-y-2">
-              <label className="block text-sm font-medium text-gray-700">Program Category</label>
+              <label className="block text-sm font-medium text-gray-700">Role Category</label>
               <select 
                 name="type" 
                 className="w-full rounded-md border border-gray-300 bg-transparent px-3 py-2 text-sm"
@@ -112,7 +162,6 @@ export default function CreateProgram() {
                 ))}
               </select>
               
-              {/* Dynamic Helper Info */}
               <div className="bg-indigo-50 border border-indigo-100 rounded-md p-4 text-sm mt-2">
                  <div className="flex gap-2 font-semibold text-indigo-900 mb-1">
                     <Info className="h-4 w-4 mt-0.5" />
@@ -126,23 +175,19 @@ export default function CreateProgram() {
                           {selectedDef.idealProfile.strengths.slice(0, 3).map(s => <li key={s}>{s}</li>)}
                        </ul>
                     </div>
-                    <div>
-                       <span className="text-xs font-bold uppercase text-indigo-400">Typical Personality</span>
-                       <p className="text-xs text-indigo-700 mt-1">{selectedDef.idealProfile.personality}</p>
-                    </div>
                  </div>
               </div>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                <div>
-                  <label className="block text-sm font-medium text-gray-700">Program Title</label>
-                  <Input name="title" placeholder="e.g. Senior Customer Support Specialist" />
+                  <label className="block text-sm font-medium text-gray-700">Role Title</label>
+                  <Input name="title" value={formDataState.title} onChange={handleChange} placeholder="e.g. Senior Customer Support Specialist" />
                   {errors.title && <p className="text-red-500 text-xs mt-1">{errors.title}</p>}
                </div>
                <div>
                   <label className="block text-sm font-medium text-gray-700">Location</label>
-                  <Input name="location" placeholder="e.g. Remote, Manila, etc." />
+                  <Input name="location" value={formDataState.location} onChange={handleChange} placeholder="e.g. Remote, Manila, etc." />
                   {errors.location && <p className="text-red-500 text-xs mt-1">{errors.location}</p>}
                </div>
             </div>
@@ -152,6 +197,8 @@ export default function CreateProgram() {
               <textarea 
                 name="description" 
                 rows={4}
+                value={formDataState.description}
+                onChange={handleChange}
                 className="w-full rounded-md border border-gray-300 bg-transparent px-3 py-2 text-sm"
                 placeholder="Describe the role and responsibilities..."
               />
@@ -160,32 +207,33 @@ export default function CreateProgram() {
 
             <div>
                <label className="block text-sm font-medium text-gray-700">Headcount Needed</label>
-               <Input name="headcountNeeded" type="number" placeholder="10" className="max-w-xs" />
+               <Input name="headcountNeeded" type="number" value={formDataState.headcountNeeded} onChange={handleChange} placeholder="10" className="max-w-xs" />
                {errors.headcountNeeded && <p className="text-red-500 text-xs mt-1">{errors.headcountNeeded}</p>}
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                <div>
                   <label className="block text-sm font-medium text-gray-700">Must Have Skills (Comma separated)</label>
-                  <Input name="mustHaveSkills" placeholder="English C1, Zendesk, Sales..." />
+                  <Input name="mustHaveSkills" value={formDataState.mustHaveSkills} onChange={handleChange} placeholder="English C1, Zendesk, Sales..." />
                   {errors.mustHaveSkills && <p className="text-red-500 text-xs mt-1">{errors.mustHaveSkills}</p>}
                </div>
 
                <div>
                   <label className="block text-sm font-medium text-gray-700">Nice to Have Skills (Optional)</label>
-                  <Input name="niceToHaveSkills" placeholder="Team Management, IT Degree..." />
+                  <Input name="niceToHaveSkills" value={formDataState.niceToHaveSkills} onChange={handleChange} placeholder="Team Management, IT Degree..." />
                </div>
             </div>
 
             <div>
                <label className="block text-sm font-medium text-gray-700">Deal Breakers / Critical Criteria (Comma separated)</label>
-               <Input name="dealBreakers" placeholder="No Tech Background, Job Hopping Risk, etc." />
+               <Input name="dealBreakers" value={formDataState.dealBreakers} onChange={handleChange} placeholder="No Tech Background, Job Hopping Risk, etc." />
                <p className="text-xs text-gray-500 mt-1">Candidates with these risks will be heavily penalized in matching.</p>
             </div>
 
             <div className="pt-4 border-t">
                <Button type="submit" className="w-full" disabled={isSubmitting}>
-                 {isSubmitting ? 'Creating...' : 'Launch Program'}
+                 <Save className="h-4 w-4 mr-2" />
+                 {isSubmitting ? 'Saving...' : (id ? 'Update Role' : 'Create Role')}
                </Button>
             </div>
           </form>

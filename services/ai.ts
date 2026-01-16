@@ -5,21 +5,93 @@ import { PROGRAM_DEFINITIONS } from '../constants';
 // Warm-up Speech (Not part of recorded transcript analysis)
 export const WARMUP_SPEECH = "Hi there! I'm Serenity. I'm here to help you find your next role. Don't worry, this isn't a test, and there are no trick questions. Just relax, take your time, and be yourself. Click the button whenever you're ready to start.";
 
-// Master Script Configuration with Confidence Framing
-const MASTER_SCRIPT = [
-  {"id":"Q1_INTRO","text":"Great. I'm going to ask you a few questions about your experience to find the best match for you. Let's start with your background.","phase":"intro"},
-  {"id":"Q2_CV_WALKTHROUGH","text":"Please walk me through your work history starting with your most recent role.","phase":"cv"},
-  {"id":"Q3_RECENT_ROLE_DETAILS","text":"In your most recent role at [MOST_RECENT_COMPANY], what were your day-to-day responsibilities?","phase":"cv"},
-  {"id":"Q4_CUSTOMER_EXPOSURE","text":"How often did you interact with customers, and through which channels—phone, chat, email, or in person?","phase":"cv"},
-  {"id":"Q5_TOOLS_SYSTEMS","text":"What tools or systems did you use regularly—like CRMs, ticketing tools, or any software?","phase":"cv"},
-  {"id":"Q6_GAP_OR_TRANSITION","text":"CONDITIONAL","phase":"cv"},
-  {"id":"Q7_SCENARIO_TECH_SUPPORT","text":"Here is a scenario. Take your time with this one. A customer says: ‘My internet hasn’t been working since yesterday.’ What would you say and do first?","phase":"scenario"},
-  {"id":"Q8_SCENARIO_ANGRY_BILLING","text":"Imagine a customer is angry and says they were charged incorrectly. There's no rush—what would you say first, and why?","phase":"scenario"},
-  {"id":"Q9_POLICY_COMPLIANCE","text":"A customer asks you to do something against policy and says ‘another agent did it for me before.’ How do you handle it?","phase":"scenario"},
-  {"id":"Q10_STRESS_PRESSURE","text":"Thinking back, tell me about a time you worked under pressure or handled a difficult situation. What did you do?","phase":"reliability"},
-  {"id":"Q11_SCHEDULE_RELIABILITY","text":"Call centre roles require punctuality and consistency. How do you make sure you stay on time and focused during long shifts?","phase":"reliability"},
-  {"id":"Q12_COACHABILITY_CLOSING","text":"Last question. What part of customer service do you find most challenging, and what would you like to improve?","phase":"closing"}
+// INTERVIEW FLOW CONFIGURATION
+// Defines the sequence of competencies to assess
+const INTERVIEW_FLOW = [
+  { slot: 'Q1',  key: 'INTRO',                phase: 'intro',       time: 0 },
+  { slot: 'Q2',  key: 'CV_WALKTHROUGH',       phase: 'cv',          time: 60 },
+  { slot: 'Q3',  key: 'RECENT_ROLE_DETAILS',  phase: 'cv',          time: 60 },
+  { slot: 'Q4',  key: 'CUSTOMER_EXPOSURE',    phase: 'cv',          time: 60 },
+  { slot: 'Q5',  key: 'TOOLS_SYSTEMS',        phase: 'cv',          time: 60 },
+  { slot: 'Q6',  key: 'GAP_OR_TRANSITION',    phase: 'cv',          time: 60 }, // Conditional
+  { slot: 'Q7',  key: 'SCENARIO_TECH',        phase: 'scenario',    time: 90 },
+  { slot: 'Q8',  key: 'SCENARIO_ANGRY',       phase: 'scenario',    time: 90 },
+  { slot: 'Q9',  key: 'POLICY_COMPLIANCE',    phase: 'scenario',    time: 90 },
+  { slot: 'Q10', key: 'STRESS_PRESSURE',      phase: 'reliability', time: 75 },
+  { slot: 'Q11', key: 'SCHEDULE_RELIABILITY', phase: 'reliability', time: 60 },
+  { slot: 'Q12', key: 'COACHABILITY',         phase: 'closing',     time: 60 }
 ];
+
+// QUESTION BANK
+// 3 Variants per competency to ensure rotation
+const QUESTION_BANK: Record<string, Array<{id: string, text: string}>> = {
+  INTRO: [
+    { id: 'Q1_V1', text: "Great. I'm going to ask you a few questions about your experience to find the best match for you. Let's start with your background." },
+    { id: 'Q1_V2', text: "Thanks for joining me. I'd love to learn about your skills and experience to see where you'd fit best. Shall we start with your work history?" },
+    { id: 'Q1_V3', text: "Welcome. To help us find the perfect program for you, I have a few questions about your career so far. Let's begin with your background." }
+  ],
+  CV_WALKTHROUGH: [
+    { id: 'Q2_V1', text: "Please walk me through your work history starting with your most recent role." },
+    { id: 'Q2_V2', text: "Could you give me a brief overview of your professional background, starting from the present and working backwards?" },
+    { id: 'Q2_V3', text: "I've got your CV here, but I'd love to hear it in your own words. Can you summarize your recent work history for me?" }
+  ],
+  RECENT_ROLE_DETAILS: [
+    { id: 'Q3_V1', text: "In your most recent role at [MOST_RECENT_COMPANY], what were your day-to-day responsibilities?" },
+    { id: 'Q3_V2', text: "Thinking about your time at [MOST_RECENT_COMPANY], what were the main tasks you handled on a typical day?" },
+    { id: 'Q3_V3', text: "At [MOST_RECENT_COMPANY], what did a standard shift look like for you, and what were your key duties?" }
+  ],
+  CUSTOMER_EXPOSURE: [
+    { id: 'Q4_V1', text: "How often did you interact with customers, and through which channels—phone, chat, email, or in person?" },
+    { id: 'Q4_V2', text: "What was the volume of customer interaction in that role, and did you mostly use voice, chat, or email?" },
+    { id: 'Q4_V3', text: "Did you spend most of your day speaking with customers? If so, was it face-to-face or over the phone?" }
+  ],
+  TOOLS_SYSTEMS: [
+    { id: 'Q5_V1', text: "What tools or systems did you use regularly—like CRMs, ticketing tools, or any software?" },
+    { id: 'Q5_V2', text: "Are you comfortable with technical tools? Which specific software or CRM platforms have you used before?" },
+    { id: 'Q5_V3', text: "Walk me through the technology stack you used. Any experience with ticketing systems or complex databases?" }
+  ],
+  // Q6 IS SPECIAL - Handled conditionally in logic, but we define the banks here
+  GAP_QUESTIONS: [
+    { id: 'Q6_GAP_V1', text: "I noticed a gap in your employment around [DATE]. Could you share how you spent that time?" },
+    { id: 'Q6_GAP_V2', text: "It looks like you had some time off around [DATE]. What were you focusing on during that period?" },
+    { id: 'Q6_GAP_V3', text: "Could you tell me a little bit about the break in your work history around [DATE]?" }
+  ],
+  TRANSITION_QUESTIONS: [
+    { id: 'Q6_TRANS_V1', text: "Why are you looking to leave your current or most recent position now?" },
+    { id: 'Q6_TRANS_V2', text: "What is motivating you to look for a new opportunity at this stage in your career?" },
+    { id: 'Q6_TRANS_V3', text: "What are you looking for in your next role that you aren't getting in your current one?" }
+  ],
+  SCENARIO_TECH: [
+    { id: 'Q7_V1', text: "Here is a scenario. A customer says: ‘My internet hasn’t been working since yesterday.’ What would you say and do first?" },
+    { id: 'Q7_V2', text: "Imagine a customer calls in saying, 'I can't connect to the wifi and I have work to do.' Walk me through your first few steps." },
+    { id: 'Q7_V3', text: "Roleplay with me for a second. I call you and say 'My service is completely down.' How do you start the troubleshooting process?" }
+  ],
+  SCENARIO_ANGRY: [
+    { id: 'Q8_V1', text: "Imagine a customer is angry and says they were charged incorrectly. There's no rush—what would you say first, and why?" },
+    { id: 'Q8_V2', text: "A customer calls in yelling about an overcharge on their bill. How do you de-escalate the situation?" },
+    { id: 'Q8_V3', text: "You receive a call from a very frustrated customer who believes we made a billing error. How do you handle their anger?" }
+  ],
+  POLICY_COMPLIANCE: [
+    { id: 'Q9_V1', text: "A customer asks you to do something against policy and says ‘another agent did it for me before.’ How do you handle it?" },
+    { id: 'Q9_V2', text: "If a customer pushes you to bend the rules because 'everyone else does it', how do you respond while maintaining the policy?" },
+    { id: 'Q9_V3', text: "How would you handle a situation where a customer demands a refund that clearly violates company policy?" }
+  ],
+  STRESS_PRESSURE: [
+    { id: 'Q10_V1', text: "Thinking back, tell me about a time you worked under pressure or handled a difficult situation. What did you do?" },
+    { id: 'Q10_V2', text: "Call centers can be fast-paced. Can you describe a time you had to handle high pressure or a heavy workload?" },
+    { id: 'Q10_V3', text: "Tell me about a stressful day at work you've had recently. How did you manage your stress levels?" }
+  ],
+  SCHEDULE_RELIABILITY: [
+    { id: 'Q11_V1', text: "Call centre roles require punctuality and consistency. How do you make sure you stay on time and focused during long shifts?" },
+    { id: 'Q11_V2', text: "Reliability is key for us. What systems or habits do you use to ensure you are always on time and ready for work?" },
+    { id: 'Q11_V3', text: "How do you manage your schedule to ensure you don't miss shifts, even when life gets busy?" }
+  ],
+  COACHABILITY: [
+    { id: 'Q12_V1', text: "Last question. What part of customer service do you find most challenging, and what would you like to improve?" },
+    { id: 'Q12_V2', text: "We believe in continuous learning. What is one area of your professional skillset you are actively trying to improve?" },
+    { id: 'Q12_V3', text: "Finally, if you looked back at your last performance review, what was one area identified for growth?" }
+  ]
+};
 
 // Helper to summarize the last answer (Mock heuristics for MVP)
 const summarizeLastAnswer = (answerTranscript: string) => {
@@ -46,7 +118,6 @@ const summarizeLastAnswer = (answerTranscript: string) => {
 
 // Core Adaptive Controller Logic
 const getNextPrompt = (
-  masterScript: typeof MASTER_SCRIPT, 
   profile: CandidateProfile | undefined, 
   state: InterviewState, 
   lastTurnSummary: { needs_followup: boolean, detected_issues: string[] }
@@ -100,7 +171,7 @@ const getNextPrompt = (
   }
 
   // 3. Next Master Question
-  if (updatedState.current_master_index >= masterScript.length) {
+  if (updatedState.current_master_index >= INTERVIEW_FLOW.length) {
     // Script exhausted
     if (state.phase !== 'complete') {
        return {
@@ -117,41 +188,54 @@ const getNextPrompt = (
     return { next_question: null, updated_state: updatedState };
   }
 
-  const scriptItem = masterScript[updatedState.current_master_index];
-  let textToAsk = scriptItem.text;
+  const flowStep = INTERVIEW_FLOW[updatedState.current_master_index];
+  let selectedQuestion: { id: string, text: string };
 
-  // Substitutions
-  if (scriptItem.id === 'Q3_RECENT_ROLE_DETAILS') {
-    const companyName = profile?.totals?.most_recent_company || "your most recent company";
-    textToAsk = textToAsk.replace('[MOST_RECENT_COMPANY]', companyName);
-  }
-
-  // Conditionals (Q6)
-  if (scriptItem.id === 'Q6_GAP_OR_TRANSITION') {
+  // Logic for Q6 Conditional
+  if (flowStep.key === 'GAP_OR_TRANSITION') {
     const hasSignificantGap = profile?.gap_analysis?.gaps?.some(g => (g.gap_months || 0) >= 2);
     if (hasSignificantGap) {
       const gap = profile?.gap_analysis?.gaps?.find(g => (g.gap_months || 0) >= 2);
       const dateStr = gap?.gap_start_date ? `around ${gap.gap_start_date}` : "in your history";
-      textToAsk = `I see a gap in your employment ${dateStr}. Could you tell me a bit about that time?`;
+      
+      const variants = QUESTION_BANK.GAP_QUESTIONS;
+      selectedQuestion = { ...variants[Math.floor(Math.random() * variants.length)] };
+      selectedQuestion.text = selectedQuestion.text.replace('[DATE]', dateStr);
     } else {
-      textToAsk = "Why are you looking to leave your current or most recent position now?";
+      const variants = QUESTION_BANK.TRANSITION_QUESTIONS;
+      selectedQuestion = { ...variants[Math.floor(Math.random() * variants.length)] };
     }
+  } else {
+    // Normal Selection from Bank
+    const variants = QUESTION_BANK[flowStep.key];
+    if (!variants) {
+       // Fallback for safety
+       selectedQuestion = { id: `${flowStep.slot}_ERROR`, text: "Could you tell me more about your experience?" };
+    } else {
+       selectedQuestion = { ...variants[Math.floor(Math.random() * variants.length)] };
+    }
+  }
+
+  // Text Substitutions for Q3 (Recent Company)
+  if (flowStep.key === 'RECENT_ROLE_DETAILS') {
+    const companyName = profile?.totals?.most_recent_company || "your most recent company";
+    selectedQuestion.text = selectedQuestion.text.replace(/\[MOST_RECENT_COMPANY\]/g, companyName);
   }
 
   // Update State for next turn
   updatedState.current_master_index += 1;
-  updatedState.last_question_id = scriptItem.id;
+  updatedState.last_question_id = selectedQuestion.id;
   updatedState.last_question_type = 'master';
-  updatedState.phase = scriptItem.phase;
-  updatedState.master_questions_asked = [...(state.master_questions_asked || []), scriptItem.id];
+  updatedState.phase = flowStep.phase;
+  updatedState.master_questions_asked = [...(state.master_questions_asked || []), selectedQuestion.id];
 
   return {
     next_question: {
-      id: scriptItem.id,
-      text: textToAsk,
-      phase: scriptItem.phase,
+      id: selectedQuestion.id,
+      text: selectedQuestion.text,
+      phase: flowStep.phase,
       type: 'master',
-      expected_answer_length_seconds: 75
+      expected_answer_length_seconds: flowStep.time
     },
     updated_state: updatedState
   };
@@ -202,7 +286,7 @@ export const aiService = {
     }
 
     // Get Next Prompt using Controller
-    return getNextPrompt(MASTER_SCRIPT, profile, state, summary);
+    return getNextPrompt(profile, state, summary);
   },
 
   async postProcessInterview({ 
@@ -218,21 +302,27 @@ export const aiService = {
     await new Promise(resolve => setTimeout(resolve, 2500));
 
     // 1. GENERATE "REAL" TRANSCRIPT FROM MOCK AUDIO (DEMO HACK)
+    // Updated to handle dynamic Question IDs by checking the Slot Prefix (Q1_, Q2_, etc.)
     const getMockAnswer = (qId: string) => {
-      const answers: Record<string, string> = {
-        'Q1_INTRO': "Yes, I am ready to begin the interview.",
-        'Q2_CV_WALKTHROUGH': "I've been working in customer service for about two years. My most recent role was at Retail Inc where I helped customers find products and handled checkout.",
-        'Q3_RECENT_ROLE_DETAILS': "I was responsible for greeting customers, processing payments, and handling returns. I also restocked shelves and ensured the store was clean.",
-        'Q4_CUSTOMER_EXPOSURE': "I interacted with customers constantly, mostly in person but sometimes over the phone to check stock.",
-        'Q5_TOOLS_SYSTEMS': "I used the Point of Sale system daily. I also used a tablet for inventory checks.",
-        'Q7_SCENARIO_TECH_SUPPORT': "First, I would apologize for the inconvenience. Then I would verify their account details and check if there are any known outages in their area before troubleshooting.",
-        'Q8_SCENARIO_ANGRY_BILLING': "I would stay calm and listen to their frustration. I would say 'I understand why that is frustrating, let me check your account immediately'.",
-        'Q9_POLICY_COMPLIANCE': "I would explain the policy politely but firmly. I might say 'I apologize, but for security reasons I cannot do that'. I would follow the official procedure.",
-        'Q10_STRESS_PRESSURE': "During the holiday season, it was very busy. I handled the stress by focusing on one customer at a time and taking deep breaths.",
-        'Q11_SCHEDULE_RELIABILITY': "I am very reliable. I always set multiple alarms and plan my commute ahead of time to ensure I am punctual.",
-        'Q12_COACHABILITY_CLOSING': "I sometimes struggle with upselling, but I am eager to learn new techniques and improve my sales skills."
-      };
-      return answers[qId] || "I would handle that situation by listening to the customer, understanding their needs, and providing a solution that follows company policy.";
+      // Helper to check prefix
+      const is = (prefix: string) => qId.startsWith(prefix);
+
+      if (is('Q1_')) return "Yes, I am ready to begin the interview.";
+      if (is('Q2_')) return "I've been working in customer service for about two years. My most recent role was at Retail Inc where I helped customers find products and handled checkout.";
+      if (is('Q3_')) return "I was responsible for greeting customers, processing payments, and handling returns. I also restocked shelves and ensured the store was clean.";
+      if (is('Q4_')) return "I interacted with customers constantly, mostly in person but sometimes over the phone to check stock.";
+      if (is('Q5_')) return "I used the Point of Sale system daily. I also used a tablet for inventory checks.";
+      // Q6 is Gap or Transition
+      if (is('Q6_')) return "I was looking for better growth opportunities. I felt I had learned everything I could in my previous role.";
+      
+      if (is('Q7_')) return "First, I would apologize for the inconvenience. Then I would verify their account details and check if there are any known outages in their area before troubleshooting.";
+      if (is('Q8_')) return "I would stay calm and listen to their frustration. I would say 'I understand why that is frustrating, let me check your account immediately'.";
+      if (is('Q9_')) return "I would explain the policy politely but firmly. I might say 'I apologize, but for security reasons I cannot do that'. I would follow the official procedure.";
+      if (is('Q10_')) return "During the holiday season, it was very busy. I handled the stress by focusing on one customer at a time and taking deep breaths.";
+      if (is('Q11_')) return "I am very reliable. I always set multiple alarms and plan my commute ahead of time to ensure I am punctual.";
+      if (is('Q12_')) return "I sometimes struggle with upselling, but I am eager to learn new techniques and improve my sales skills.";
+
+      return "I would handle that situation by listening to the customer, understanding their needs, and providing a solution that follows company policy.";
     };
 
     // 2. SCORING HEURISTICS
@@ -254,12 +344,13 @@ export const aiService = {
     let cvWalkthroughWordCount = 0;
     questionsAsked.forEach(q => {
       const answer = getMockAnswer(q.question_id);
+      const is = (prefix: string) => q.question_id.startsWith(prefix);
       
       const lAnswer = answer.toLowerCase();
       const words = answer.split(' ').length;
 
       // Track CV explanation depth for CV alignment score
-      if (q.question_id === 'Q2_CV_WALKTHROUGH' || q.question_id === 'Q3_RECENT_ROLE_DETAILS') {
+      if (is('Q2_') || is('Q3_')) {
           cvWalkthroughWordCount += words;
       }
 
@@ -361,7 +452,6 @@ export const aiService = {
     const potentialOffers: CoachingOffer[] = [];
 
     // Trigger 1: Communication Coaching
-    // Condition: Coherence proxy is low OR Empathy is low
     if (scores.speaking_coherence_proxy < 0.7 || scores.empathy < 0.6) {
         potentialOffers.push({
             type: 'COMMUNICATION_COACHING',
@@ -371,8 +461,7 @@ export const aiService = {
         });
     }
 
-    // Trigger 2: Interview Prep (Close to Hire Ready)
-    // Condition: Overall score is within striking distance (60-74) AND Communication is the bottleneck
+    // Trigger 2: Interview Prep
     if (overallScore >= 60 && overallScore < 75 && scores.communication_clarity < 0.75) {
         potentialOffers.push({
             type: 'INTERVIEW_PREP',
@@ -383,7 +472,6 @@ export const aiService = {
     }
 
     // Trigger 3: CV Rewrite
-    // Condition: CV Alignment score low OR Low overall score but high process compliance (candidate knows their stuff but can't sell it)
     if (scores.cv_alignment < 0.6 || (overallScore < 60 && scores.process_compliance > 0.7)) {
         potentialOffers.push({
             type: 'CV_REWRITE',
@@ -393,8 +481,7 @@ export const aiService = {
         });
     }
 
-    // Trigger 4: Job Readiness / Soft Skills
-    // Condition: Reliability Risk detected or Stress Handling low
+    // Trigger 4: Job Readiness
     if (riskFlags.includes("Reliability Risk") || scores.stress_handling < 0.6) {
         potentialOffers.push({
             type: 'JOB_READINESS',
@@ -404,9 +491,7 @@ export const aiService = {
         });
     }
 
-    // Select Top 2 Offers
     const finalOffers = potentialOffers.slice(0, 2);
-
 
     // 6. CONSTRUCT OUTPUT
     return {

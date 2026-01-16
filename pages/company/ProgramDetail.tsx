@@ -1,11 +1,12 @@
+
 import React, { useEffect, useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { db } from '../../db';
 import { Program, Application } from '../../types';
-import { Button, Card, CardContent, CardHeader, CardTitle, Badge } from '../../ui';
+import { Button, Card, CardContent, CardHeader, CardTitle, Badge, Tooltip } from '../../ui';
 import { ArrowLeft, Check, X, FileText, Download, AlertTriangle, ThumbsUp } from 'lucide-react';
 
-export default function ProgramDetail() {
+export default function RoleDetail() {
   const { id } = useParams<{ id: string }>();
   const [program, setProgram] = useState<Program | null>(null);
   const [applications, setApplications] = useState<(Application & { candidate: any, interview: any })[]>([]);
@@ -34,8 +35,8 @@ export default function ProgramDetail() {
 
   return (
     <div className="space-y-6">
-      <Link to="/company" className="flex items-center text-sm text-gray-500 hover:text-gray-900">
-        <ArrowLeft className="h-4 w-4 mr-1" /> Back to Programs
+      <Link to="/company/roles" className="flex items-center text-sm text-gray-500 hover:text-gray-900">
+        <ArrowLeft className="h-4 w-4 mr-1" /> Back to Roles
       </Link>
       
       <div className="flex justify-between items-start">
@@ -62,9 +63,11 @@ export default function ProgramDetail() {
                   <div className="flex-1">
                     <div className="flex items-center gap-3">
                       <h4 className="text-lg font-bold">{app.candidate.fullName}</h4>
-                      <Badge variant={app.matchScore > 80 ? 'success' : app.matchScore > 60 ? 'warning' : 'default'}>
-                        {app.matchScore}% Match {app.matchTier && `(${app.matchTier})`}
-                      </Badge>
+                      <Tooltip content="Overall fit based on skills and interview performance.">
+                        <Badge variant={app.matchScore > 80 ? 'success' : app.matchScore > 60 ? 'warning' : 'default'}>
+                            {app.matchScore}% Match {app.matchTier && `(${app.matchTier})`}
+                        </Badge>
+                      </Tooltip>
                     </div>
                     <div className="text-sm text-gray-600 mt-1">
                       {app.candidate.location} • {app.candidate.profile?.totals?.most_recent_role_title}

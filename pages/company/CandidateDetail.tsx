@@ -3,8 +3,8 @@ import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { db } from '../../db';
 import { Application, InterviewRecommendation, ApplicationStatus } from '../../types';
-import { Button, Card, CardContent, CardHeader, CardTitle, Badge } from '../../ui';
-import { ArrowLeft, CheckCircle, XCircle, Clock, PlayCircle, AlertTriangle, MessageSquare, ShieldCheck, ChevronDown, Check, Target } from 'lucide-react';
+import { Button, Card, CardContent, CardHeader, CardTitle, Badge, Tooltip } from '../../ui';
+import { ArrowLeft, CheckCircle, XCircle, Clock, PlayCircle, AlertTriangle, MessageSquare, ShieldCheck, ChevronDown, Check, Target, Info } from 'lucide-react';
 
 export default function CompanyCandidateDetail() {
   const { appId } = useParams<{ appId: string }>();
@@ -148,6 +148,9 @@ export default function CompanyCandidateDetail() {
                  <CardHeader>
                     <CardTitle className="text-base flex items-center gap-2 text-indigo-900">
                        <Target className="h-4 w-4" /> Job Fit Analysis
+                       <Tooltip content="Weighted score: 40% Skills, 30% Interview, 30% Program Type Fit.">
+                           <Info className="h-3 w-3 text-indigo-400 cursor-help" />
+                       </Tooltip>
                     </CardTitle>
                  </CardHeader>
                  <CardContent>
@@ -210,10 +213,18 @@ export default function CompanyCandidateDetail() {
                       
                       {/* Competency Scorecard */}
                       <div className="space-y-3 pt-2 border-t">
-                        <ScoreBar label="Communication" score={interview.scores.communication} />
-                        <ScoreBar label="Empathy & EQ" score={interview.scores.empathy} />
-                        <ScoreBar label="Process Adherence" score={interview.scores.process} />
-                        <ScoreBar label="Reliability" score={interview.scores.reliability} />
+                        <Tooltip content="Clarity of speech, pace, and articulation." side="left">
+                            <div><ScoreBar label="Communication" score={interview.scores.communication} /></div>
+                        </Tooltip>
+                        <Tooltip content="Ability to understand customer sentiment." side="left">
+                            <div><ScoreBar label="Empathy & EQ" score={interview.scores.empathy} /></div>
+                        </Tooltip>
+                        <Tooltip content="Likelihood to follow scripts and rules." side="left">
+                            <div><ScoreBar label="Process Adherence" score={interview.scores.process} /></div>
+                        </Tooltip>
+                        <Tooltip content="Punctuality indicators and commitment signals." side="left">
+                            <div><ScoreBar label="Reliability" score={interview.scores.reliability} /></div>
+                        </Tooltip>
                       </div>
                   </CardContent>
               </Card>

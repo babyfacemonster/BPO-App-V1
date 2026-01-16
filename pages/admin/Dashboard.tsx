@@ -1,196 +1,223 @@
+
 import React, { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { db } from '../../db';
-import { aiService } from '../../services/ai';
-import { Card, CardContent, CardHeader, CardTitle, Badge, Button } from '../../ui';
-import { BarChart, AlertTriangle, FileEdit, Settings, Check, ThumbsDown, MessageSquare } from 'lucide-react';
-import { FeedbackAnalysis, FeedbackSummary } from '../../types';
+import { Company, Program, Application, InterviewSession, InterviewRecommendation, ApplicationStatus } from '../../types';
+import { Card, CardContent, CardHeader, CardTitle, Badge, Button, Input } from '../../ui';
+import { Briefcase, Users, FileText, CheckCircle, BarChart, ChevronRight, TrendingUp, AlertCircle, Filter } from 'lucide-react';
 
 export default function AdminDashboard() {
-  const [stats, setStats] = useState({ candidates: 0, interviews: 0, programs: 0, applications: 0 });
-  const [feedbackSummary, setFeedbackSummary] = useState<FeedbackSummary | null>(null);
-  const [aiAnalysis, setAiAnalysis] = useState<FeedbackAnalysis | null>(null);
-  const [loadingAnalysis, setLoadingAnalysis] = useState(false);
+  const navigate = useNavigate();
+  const [data, setData] = useState<{
+      companies: Company[], 
+      programs: Program[], 
+      candidates: any[], 
+      interviews: InterviewSession[], 
+      applications: Application[]
+  } | null>(null);
+
+  // Filter State
+  const [selectedCompanyId, setSelectedCompanyId] = useState<string>('ALL');
 
   useEffect(() => {
     const load = async () => {
-      const s = await db.getAllStats();
-      setStats(s);
-      
-      const summary = await db.getFeedbackSummary();
-      setFeedbackSummary(summary);
+       const d = await db.getAdminFullData();
+       setData(d);
     };
     load();
   }, []);
 
-  const runAnalysis = async () => {
-    if (!feedbackSummary) return;
-    setLoadingAnalysis(true);
-    const result = await aiService.analyzeFeedback(feedbackSummary);
-    setAiAnalysis(result);
-    setLoadingAnalysis(false);
-  };
+  if (!data) return <div className="p-8">Loading operational console...</div>;
+
+  // -- CALCULATIONS --
+
+  // Filter Data
+  const filteredPrograms = selectedCompanyId === 'ALL' ? data.programs : data.programs.filter(p => p.companyId === selectedCompanyId);
+  const filteredApps = selectedCompanyId === 'ALL' ? data.applications : data.applications.filter(a => {
+      const prog = data.programs.find(p => p.id === a.programId);
+      return prog?.companyId === selectedCompanyId;
+  });
+
+  // KPIs
+  const activeRoles = filteredPrograms.filter(p => p.status === 'LIVE');
+  const totalHeadcountNeeded = activeRoles.reduce((sum, p) => sum + p.headcountNeeded, 0);
+  const candidatesInPipeline = new Set(filteredApps.map(a => a.candidateId)).size;
+  const interviewsConducted = data.interviews.length; // Global for now as interviews aren't always tied to company directly until matched
+  const hireReadyCount = data.interviews.filter(i => i.recommendation === InterviewRecommendation.HIRE_READY).length;
+  
+  // Direct Hire vs Re-interview (Confidence Metric)
+  const acceptedCount = filteredApps.filter(a => a.status === ApplicationStatus.ACCEPTED).length;
+  const reInterviewCount = filteredApps.filter(a => a.status === ApplicationStatus.INTERVIEW_REQUESTED).length;
+  const totalDecisions = acceptedCount + reInterviewCount;
+  const confidenceScore = totalDecisions > 0 ? Math.round((acceptedCount / totalDecisions) * 100) : 0;
+
+  // Funnel Data
+  const cvs = data.candidates.filter(c => c.cvId).length;
+  const interviews = data.interviews.length;
+  const matches = data.applications.length;
+  const shortlisted = data.applications.filter(a => a.status === ApplicationStatus.SHORTLISTED || a.status === ApplicationStatus.ACCEPTED || a.status === ApplicationStatus.INTERVIEW_REQUESTED).length;
+  const hires = data.applications.filter(a => a.status === ApplicationStatus.ACCEPTED).length;
 
   return (
-    <div className="space-y-6">
-      <h1 className="text-2xl font-bold text-gray-900">Serenity Admin Control</h1>
+    <div className="space-y-8">
       
-      {/* Top Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <StatCard title="Total Candidates" value={stats.candidates} />
-        <StatCard title="Interviews Conducted" value={stats.interviews} />
-        <StatCard title="Active Programs" value={stats.programs} />
-        <StatCard title="Matches Generated" value={stats.applications} />
+      {/* Header & Filter Bar */}
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-white p-4 rounded-xl shadow-sm border">
+         <div>
+            <h1 className="text-2xl font-bold text-gray-900">Operational Console</h1>
+            <p className="text-sm text-gray-500">Real-time oversight of recruitment operations.</p>
+         </div>
+         <div className="flex items-center gap-3">
+             <Filter className="h-4 w-4 text-gray-500" />
+             <select 
+               className="border-gray-300 rounded-md text-sm"
+               value={selectedCompanyId}
+               onChange={(e) => setSelectedCompanyId(e.target.value)}
+             >
+                 <option value="ALL">All Companies</option>
+                 {data.companies.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+             </select>
+         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-4">
-         
-         {/* System Health */}
-         <Card>
-            <CardHeader><CardTitle>System Health</CardTitle></CardHeader>
-            <CardContent>
-               <div className="space-y-4">
-                  <div className="flex justify-between items-center border-b pb-2">
-                     <span className="text-sm text-gray-600">AI Service</span>
-                     <span className="text-xs px-2 py-1 bg-green-100 text-green-800 rounded-full">Operational</span>
-                  </div>
-                  <div className="flex justify-between items-center border-b pb-2">
-                     <span className="text-sm text-gray-600">Video Storage</span>
-                     <span className="text-xs px-2 py-1 bg-yellow-100 text-yellow-800 rounded-full">85% Capacity</span>
-                  </div>
-               </div>
-            </CardContent>
-         </Card>
+      {/* KPI Cards */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+         <KPICard title="Active Roles" value={activeRoles.length} icon={<Briefcase className="text-indigo-600" />} />
+         <KPICard title="Headcount Demand" value={totalHeadcountNeeded} icon={<Users className="text-blue-600" />} />
+         <KPICard title="Pipeline Candidates" value={candidatesInPipeline} icon={<FileText className="text-orange-600" />} />
+         <KPICard title="AI Confidence" value={`${confidenceScore}%`} sub="Direct Hire Rate" icon={<CheckCircle className="text-emerald-600" />} />
+      </div>
 
-         {/* Candidate Feedback Summary */}
-         <Card>
-            <CardHeader>
-                <div className="flex justify-between items-center">
-                    <CardTitle className="flex items-center gap-2">
-                        <MessageSquare className="h-5 w-5 text-indigo-600" /> Candidate Feedback
-                    </CardTitle>
-                    {feedbackSummary && (
-                        <span className="text-xs text-gray-400">{feedbackSummary.total_responses} responses</span>
-                    )}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          
+          {/* Outstanding Roles & Gap Analysis */}
+          <Card className="lg:col-span-2">
+             <CardHeader>
+                <CardTitle>Role Fulfillment Status</CardTitle>
+             </CardHeader>
+             <CardContent>
+                <div className="overflow-x-auto">
+                   <table className="w-full text-sm text-left">
+                      <thead className="bg-gray-50 text-gray-600">
+                         <tr>
+                            <th className="p-3">Role Title</th>
+                            <th className="p-3">Company</th>
+                            <th className="p-3">Needed</th>
+                            <th className="p-3">Supplied</th>
+                            <th className="p-3">Gap</th>
+                            <th className="p-3">Action</th>
+                         </tr>
+                      </thead>
+                      <tbody className="divide-y">
+                         {activeRoles.map(role => {
+                             const supplied = filteredApps.filter(a => a.programId === role.id && a.status !== ApplicationStatus.REJECTED).length;
+                             const gap = Math.max(0, role.headcountNeeded - supplied);
+                             const companyName = data.companies.find(c => c.id === role.companyId)?.name || 'Unknown';
+                             
+                             return (
+                                 <tr key={role.id} className="hover:bg-gray-50">
+                                     <td className="p-3 font-medium">{role.title}</td>
+                                     <td className="p-3 text-gray-500">{companyName}</td>
+                                     <td className="p-3">{role.headcountNeeded}</td>
+                                     <td className="p-3">{supplied}</td>
+                                     <td className="p-3">
+                                         {gap > 0 ? (
+                                             <span className="text-red-600 font-bold">-{gap}</span>
+                                         ) : (
+                                             <span className="text-green-600 font-bold">OK</span>
+                                         )}
+                                     </td>
+                                     <td className="p-3">
+                                         <Button size="sm" variant="ghost" onClick={() => navigate(`/admin/role/${role.id}`)}>
+                                             <ChevronRight className="h-4 w-4" />
+                                         </Button>
+                                     </td>
+                                 </tr>
+                             );
+                         })}
+                      </tbody>
+                   </table>
                 </div>
-            </CardHeader>
-            <CardContent>
-               {!feedbackSummary || feedbackSummary.total_responses === 0 ? (
-                   <p className="text-sm text-gray-400">No feedback data collected yet.</p>
-               ) : (
-                   <div className="space-y-4">
-                       <div className="grid grid-cols-3 gap-2 text-center">
-                           <div className="bg-gray-50 p-2 rounded">
-                               <p className="text-xs text-gray-500">Clarity</p>
-                               <p className={`font-bold ${feedbackSummary.avg_clarity < 3.5 ? 'text-red-600' : 'text-green-600'}`}>{feedbackSummary.avg_clarity.toFixed(1)}</p>
-                           </div>
-                           <div className="bg-gray-50 p-2 rounded">
-                               <p className="text-xs text-gray-500">Relevance</p>
-                               <p className="font-bold text-gray-800">{feedbackSummary.avg_relevance.toFixed(1)}</p>
-                           </div>
-                           <div className="bg-gray-50 p-2 rounded">
-                               <p className="text-xs text-gray-500">Fairness</p>
-                               <p className="font-bold text-gray-800">{feedbackSummary.avg_fairness.toFixed(1)}</p>
-                           </div>
-                       </div>
-                       <div>
-                           <p className="text-xs font-semibold mb-2 text-gray-700">Top Tags</p>
-                           <div className="flex flex-wrap gap-2">
-                               {Object.entries(feedbackSummary.tags).map(([tag, count]) => (
-                                   <Badge key={tag} variant={tag.includes('confus') ? 'error' : 'default'}>
-                                       {tag.replace('_', ' ')} ({count})
-                                   </Badge>
-                               ))}
-                           </div>
-                       </div>
-                       <Button 
-                        size="sm" 
-                        variant="outline" 
-                        className="w-full mt-2"
-                        onClick={runAnalysis}
-                        disabled={loadingAnalysis}
-                       >
-                           {loadingAnalysis ? "Analyzing..." : "Run AI Improvement Analysis"}
-                       </Button>
-                   </div>
-               )}
-            </CardContent>
-         </Card>
+             </CardContent>
+          </Card>
+
+          {/* Funnel Metrics */}
+          <Card>
+             <CardHeader>
+                <CardTitle>Conversion Funnel</CardTitle>
+             </CardHeader>
+             <CardContent>
+                <div className="space-y-4">
+                    <FunnelStep label="Candidates (CV)" count={cvs} percent={100} />
+                    <FunnelStep label="Interviewed" count={interviews} percent={cvs > 0 ? Math.round((interviews/cvs)*100) : 0} />
+                    <FunnelStep label="Matched" count={matches} percent={interviews > 0 ? Math.round((matches/interviews)*100) : 0} />
+                    <FunnelStep label="Shortlisted" count={shortlisted} percent={matches > 0 ? Math.round((shortlisted/matches)*100) : 0} />
+                    <FunnelStep label="Hired" count={hires} percent={shortlisted > 0 ? Math.round((hires/shortlisted)*100) : 0} color="emerald" />
+                </div>
+             </CardContent>
+          </Card>
       </div>
 
-      {/* AI Analysis Results */}
-      {aiAnalysis && (
-        <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
-            <h2 className="text-xl font-bold text-gray-800 flex items-center gap-2">
-                <BarChart className="h-5 w-5" /> Recommended Improvements
-            </h2>
-            
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                {/* Top Issues */}
-                <Card className="border-l-4 border-l-red-500">
-                    <CardHeader><CardTitle className="text-red-700">Top Quality Issues</CardTitle></CardHeader>
-                    <CardContent className="space-y-4">
-                        {aiAnalysis.top_issues.map((issue, idx) => (
-                            <div key={idx} className="bg-red-50 p-3 rounded-md">
-                                <div className="flex justify-between items-start">
-                                    <h4 className="font-bold text-red-900 text-sm">{issue.issue}</h4>
-                                    <Badge variant="error">{issue.impact.toUpperCase()}</Badge>
-                                </div>
-                                <p className="text-xs text-red-800 mt-1">Fix: {issue.recommended_fix}</p>
-                                <div className="mt-2 text-xs italic text-gray-500 bg-white/50 p-2 rounded">
-                                    "{issue.evidence.example_comments[0]}"
-                                </div>
-                            </div>
-                        ))}
-                    </CardContent>
-                </Card>
+      {/* Companies Grid */}
+      <div>
+          <h2 className="text-lg font-bold text-gray-900 mb-4">Company Overview</h2>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {data.companies.map(comp => (
+                  <Card key={comp.id} className="hover:border-indigo-300 transition-colors cursor-pointer" onClick={() => navigate(`/admin/company/${comp.id}`)}>
+                      <CardContent className="p-6">
+                          <div className="flex justify-between items-start mb-4">
+                              <div>
+                                  <h3 className="font-bold text-lg">{comp.name}</h3>
+                                  <p className="text-sm text-gray-500">{comp.industry}</p>
+                              </div>
+                              <div className="bg-indigo-50 p-2 rounded-full text-indigo-600">
+                                  <TrendingUp className="h-4 w-4" />
+                              </div>
+                          </div>
+                          <div className="grid grid-cols-2 gap-4 text-sm">
+                              <div>
+                                  <p className="text-gray-500">Live Roles</p>
+                                  <p className="font-bold">{data.programs.filter(p => p.companyId === comp.id && p.status === 'LIVE').length}</p>
+                              </div>
+                              <div>
+                                  <p className="text-gray-500">Hires</p>
+                                  <p className="font-bold">{data.applications.filter(a => {
+                                      const p = data.programs.find(prog => prog.id === a.programId);
+                                      return p?.companyId === comp.id && a.status === ApplicationStatus.ACCEPTED;
+                                  }).length}</p>
+                              </div>
+                          </div>
+                      </CardContent>
+                  </Card>
+              ))}
+          </div>
+      </div>
 
-                {/* Script Changes */}
-                <Card className="border-l-4 border-l-indigo-500">
-                    <CardHeader><CardTitle className="text-indigo-700">Proposed Script Changes</CardTitle></CardHeader>
-                    <CardContent className="space-y-4">
-                        {aiAnalysis.script_change_proposals.map((proposal, idx) => (
-                            <div key={idx} className="border p-3 rounded-md bg-white">
-                                <div className="flex items-center gap-2 mb-2">
-                                    <FileEdit className="h-4 w-4 text-indigo-500" />
-                                    <span className="font-mono text-xs uppercase bg-gray-100 px-2 rounded">{proposal.change_type}</span>
-                                </div>
-                                <div className="grid grid-cols-1 gap-2 text-sm">
-                                    <div className="bg-red-50 p-2 rounded text-red-800 line-through decoration-red-500/50 opacity-70">
-                                        {proposal.current_text}
-                                    </div>
-                                    <div className="bg-green-50 p-2 rounded text-green-800 font-medium">
-                                        {proposal.proposed_text}
-                                    </div>
-                                </div>
-                                <div className="mt-2 flex justify-end">
-                                    <Button size="sm">Apply Change</Button>
-                                </div>
-                            </div>
-                        ))}
-                        {aiAnalysis.scoring_rubric_adjustments.map((adj, idx) => (
-                             <div key={idx} className="border p-3 rounded-md bg-white flex items-start gap-3">
-                                <Settings className="h-4 w-4 text-gray-500 mt-1" />
-                                <div>
-                                    <p className="text-sm font-bold text-gray-800">{adj.dimension}</p>
-                                    <p className="text-xs text-gray-600">{adj.suggested_change}</p>
-                                    <p className="text-[10px] text-gray-400 mt-1">{adj.rationale}</p>
-                                </div>
-                             </div>
-                        ))}
-                    </CardContent>
-                </Card>
-            </div>
-        </div>
-      )}
     </div>
   );
 }
 
-const StatCard = ({ title, value }: { title: string, value: number }) => (
-  <Card>
-    <CardContent className="p-6">
-      <p className="text-sm font-medium text-gray-500">{title}</p>
-      <p className="text-3xl font-bold mt-2">{value}</p>
-    </CardContent>
-  </Card>
+const KPICard = ({ title, value, sub, icon }: { title: string, value: string | number, sub?: string, icon: React.ReactNode }) => (
+    <Card>
+        <CardContent className="p-6 flex items-center justify-between">
+            <div>
+                <p className="text-sm font-medium text-gray-500">{title}</p>
+                <p className="text-2xl font-bold mt-1 text-gray-900">{value}</p>
+                {sub && <p className="text-xs text-gray-400 mt-1">{sub}</p>}
+            </div>
+            <div className="p-3 bg-gray-50 rounded-lg">{icon}</div>
+        </CardContent>
+    </Card>
+);
+
+const FunnelStep = ({ label, count, percent, color = 'indigo' }: { label: string, count: number, percent: number, color?: string }) => (
+    <div>
+        <div className="flex justify-between text-sm mb-1">
+            <span className="font-medium text-gray-700">{label}</span>
+            <span className="text-gray-500">{count} ({percent}%)</span>
+        </div>
+        <div className="w-full bg-gray-100 rounded-full h-2">
+            <div className={`h-2 rounded-full bg-${color}-500`} style={{ width: `${percent}%` }}></div>
+        </div>
+    </div>
 );
