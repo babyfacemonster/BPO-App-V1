@@ -1,10 +1,11 @@
+
 import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../../authContext';
 import { db } from '../../db';
 import { Candidate, InterviewSession, InterviewStatus, Application, InterviewRecommendation, Program } from '../../types';
 import { Button, Card, CardContent, CardHeader, CardTitle, Badge } from '../../ui';
-import { FileText, PlayCircle, Clock, CheckCircle, Upload, Award, Zap, TrendingUp, Briefcase, ChevronRight, Lightbulb } from 'lucide-react';
+import { FileText, PlayCircle, Clock, CheckCircle, Upload, Award, Zap, TrendingUp, Briefcase, ChevronRight, Lightbulb, UserCheck, Star, Target } from 'lucide-react';
 
 export default function CandidateDashboard() {
   const { user } = useAuth();
@@ -86,12 +87,17 @@ export default function CandidateDashboard() {
                   <span className="text-gray-600">Status</span>
                   <Badge variant="success">Complete</Badge>
                 </div>
-                <div className="flex justify-between items-center border-b pb-4">
-                  <span className="text-gray-600">Overall Score</span>
-                  <span className="font-bold text-xl">{interview.overallScore.toFixed(0)}/100</span>
-                </div>
+                {/* Transparent feedback: Show Role Fit instead of raw score for friendliness */}
+                {interview.feedbackForCandidate?.role_fit_analysis && (
+                   <div className="bg-indigo-50 p-4 rounded-lg text-sm text-indigo-900 mb-2">
+                      <div className="font-bold flex items-center gap-2 mb-2">
+                         <Target className="h-4 w-4" /> Best Fit: {interview.feedbackForCandidate.role_fit_analysis.primary_fit}
+                      </div>
+                      <p>{interview.feedbackForCandidate.role_fit_analysis.strengths_summary}</p>
+                   </div>
+                )}
                 <div className="flex justify-between items-center">
-                  <span className="text-gray-600">Readiness</span>
+                  <span className="text-gray-600">Overall Readiness</span>
                   {getRecBadge(interview.recommendation)}
                 </div>
                 {interview.recommendation !== InterviewRecommendation.NOT_RECOMMENDED_YET && (
@@ -116,11 +122,25 @@ export default function CandidateDashboard() {
           <Card className="md:col-span-2 lg:col-span-1">
             <CardHeader>
                <CardTitle className="flex items-center gap-2">
-                  <Zap className="h-5 w-5 text-yellow-500" /> AI Insights
+                  <Zap className="h-5 w-5 text-yellow-500" /> Career Insights
                </CardTitle>
             </CardHeader>
             <CardContent>
                <div className="space-y-6">
+                  
+                  {/* Role Fit Analysis Section */}
+                  {interview.feedbackForCandidate.role_fit_analysis && (
+                     <div className="border-b pb-4 mb-4">
+                         <h4 className="text-sm font-semibold text-gray-900 mb-2 flex items-center gap-2">
+                             <UserCheck className="h-4 w-4 text-indigo-600" /> What roles fit you best?
+                         </h4>
+                         <p className="text-sm text-gray-600 italic">"{interview.feedbackForCandidate.role_fit_analysis.primary_fit}"</p>
+                         <p className="text-xs text-gray-500 mt-2 bg-gray-50 p-2 rounded">
+                            {interview.feedbackForCandidate.role_fit_analysis.growth_areas_summary}
+                         </p>
+                     </div>
+                  )}
+
                   {/* Strengths */}
                   {interview.feedbackForCandidate.positive.length > 0 && (
                      <div>
@@ -128,7 +148,7 @@ export default function CandidateDashboard() {
                            <CheckCircle className="h-4 w-4" /> Top Strengths
                         </h4>
                         <ul className="space-y-1">
-                           {interview.feedbackForCandidate.positive.map((s, i) => (
+                           {interview.feedbackForCandidate.positive.slice(0, 3).map((s, i) => (
                              <li key={i} className="text-sm text-gray-700 pl-2 border-l-2 border-green-200">{s}</li>
                            ))}
                         </ul>
@@ -142,7 +162,7 @@ export default function CandidateDashboard() {
                            <TrendingUp className="h-4 w-4" /> Growth Areas
                         </h4>
                         <div className="space-y-3">
-                           {interview.feedbackForCandidate.detailed_insights.map((insight, i) => (
+                           {interview.feedbackForCandidate.detailed_insights.slice(0, 2).map((insight, i) => (
                              <div key={i} className="bg-orange-50 rounded-md p-3 text-sm">
                                <p className="font-semibold text-gray-800 mb-1">{insight.area}</p>
                                <div className="flex items-start gap-2 mt-2 text-gray-600">
@@ -193,7 +213,7 @@ export default function CandidateDashboard() {
             <CardContent>
                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                  {matches.map(match => (
-                    <div key={match.id} className="border rounded-lg p-4 hover:shadow-md transition-shadow relative overflow-hidden">
+                    <div key={match.id} className="border rounded-lg p-4 hover:shadow-md transition-shadow relative overflow-hidden bg-white">
                        <div className={`absolute top-0 right-0 px-3 py-1 text-xs font-bold text-white rounded-bl-lg ${match.matchTier === 'strong' ? 'bg-emerald-500' : match.matchTier === 'medium' ? 'bg-yellow-500' : 'bg-gray-400'}`}>
                          {match.matchScore}% Match
                        </div>
@@ -201,11 +221,14 @@ export default function CandidateDashboard() {
                        <p className="text-sm text-gray-500 mb-2">{match.program.location} • {match.program.type.replace('_', ' ')}</p>
                        
                        {match.matchBreakdown && (
-                         <div className="mt-3 text-xs bg-gray-50 p-2 rounded">
-                            <p className="font-semibold text-gray-700">Why you matched:</p>
-                            <ul className="list-disc list-inside text-gray-600 mt-1">
+                         <div className="mt-3 text-xs bg-gray-50 p-2 rounded border border-gray-100">
+                            <p className="font-semibold text-gray-700 mb-1">Why you matched:</p>
+                            <ul className="space-y-1 text-gray-600">
                                {match.matchBreakdown.why_this_match.slice(0, 2).map((reason, i) => (
-                                 <li key={i}>{reason}</li>
+                                 <li key={i} className="flex items-start gap-1.5">
+                                    <Star className="h-3 w-3 text-yellow-400 mt-0.5 shrink-0" /> 
+                                    <span>{reason}</span>
+                                 </li>
                                ))}
                             </ul>
                          </div>

@@ -1,3 +1,4 @@
+
 export enum UserRole {
   CANDIDATE = 'CANDIDATE',
   COMPANY_USER = 'COMPANY_USER',
@@ -31,7 +32,7 @@ export enum ProgramType {
   INBOUND_SUPPORT = 'INBOUND_SUPPORT',
   OUTBOUND_SALES = 'OUTBOUND_SALES',
   TECH_SUPPORT = 'TECH_SUPPORT',
-  OTHER = 'OTHER'
+  BACK_OFFICE = 'BACK_OFFICE'
 }
 
 export enum ProgramStatus {
@@ -44,6 +45,7 @@ export enum ApplicationStatus {
   SUGGESTED = 'SUGGESTED',
   APPLIED = 'APPLIED',
   SHORTLISTED = 'SHORTLISTED',
+  INTERVIEW_REQUESTED = 'INTERVIEW_REQUESTED', // New
   ACCEPTED = 'ACCEPTED',
   REJECTED = 'REJECTED'
 }
@@ -139,22 +141,13 @@ export interface CandidateCV {
 }
 
 export interface InterviewState {
-  // Core Tracking
-  current_master_index: number; // 0-based index into MASTER_SCRIPT
-  master_questions_asked: string[]; // IDs
-  followups_used: number; // Count
-  
-  // Timing
+  current_master_index: number;
+  master_questions_asked: string[];
+  followups_used: number;
   time_elapsed_minutes: number;
-  
-  // Logic Flags
   flags: string[];
-  
-  // Turn Context
   last_question_id?: string | null;
   last_question_type?: 'master' | 'followup' | null;
-
-  // Legacy/UI Compat
   phase?: string; 
 }
 
@@ -162,7 +155,7 @@ export interface QuestionScore {
   question_id: string;
   dimension_scores: {
     communication_clarity: number | null;
-    speaking_coherence_proxy: number | null; // Renamed from accent
+    speaking_coherence_proxy: number | null;
     empathy: number | null;
     de_escalation: number | null;
     process_compliance: number | null;
@@ -195,30 +188,38 @@ export interface CoachingOffer {
   expected_benefit: string;
 }
 
+export interface RoleFitAnalysis {
+  primary_fit: string; // e.g., "Customer Care Specialist"
+  strengths_summary: string;
+  growth_areas_summary: string;
+}
+
 export interface FeedbackForCandidate {
   positive: string[];
-  improve: string[]; // Kept for backward compat
+  improve: string[];
+  role_fit_analysis?: RoleFitAnalysis; // New field for transparency
   detailed_insights: ImprovementInsight[];
   coaching_offers: CoachingOffer[];
 }
 
 export interface SummaryForCompany {
+  short_overview?: string; // Added short one-line summary
   strengths: string[];
   risks: string[];
   recommended_followup_questions: string[];
+  recommended_program_types?: ProgramType[];
 }
 
 export interface TranscriptItem {
   role: 'system' | 'user';
   content: string;
   id?: string;
-  // Video specific metadata
   timestamps?: {
     start_sec: number | null;
     end_sec: number | null;
   };
   quality_flags?: string[];
-  video_url?: string; // Mock URL for playback
+  video_url?: string;
 }
 
 export interface InterviewSession {
@@ -231,7 +232,7 @@ export interface InterviewSession {
   questionScores: QuestionScore[];
   scores: {
     communication: number;
-    coherence: number; // Renamed from accent
+    coherence: number;
     empathy: number;
     deescalation: number;
     process: number;
@@ -244,6 +245,9 @@ export interface InterviewSession {
   recommendation: InterviewRecommendation;
   summaryForCompany?: SummaryForCompany;
   feedbackForCandidate?: FeedbackForCandidate;
+  riskFlags?: string[];
+  aiConfidence?: number;
+  notes?: string[];
   createdAt: string;
 }
 
@@ -257,6 +261,7 @@ export interface Program {
   headcountNeeded: number;
   mustHaveSkills: string[];
   niceToHaveSkills: string[];
+  dealBreakers?: string[]; // New: Critical criteria
   status: ProgramStatus;
   createdAt: string;
 }
@@ -278,23 +283,20 @@ export interface Application {
   matchScore: number;
   matchTier?: 'strong' | 'medium' | 'stretch';
   matchBreakdown?: MatchBreakdown;
+  recruiterReason?: string; // "Skill Mismatch", "Strong Fit", etc.
+  recruiterNote?: string;
   createdAt: string;
-}
-
-export interface InterviewQuestion {
-  id: string;
-  text: string;
-  dimension: keyof InterviewSession['scores'];
+  updatedAt?: string;
 }
 
 export interface InterviewFeedback {
   id: string;
   candidateId: string;
   interviewId: string;
-  clarityRating: number; // 1-5
-  relevanceRating: number; // 1-5
-  fairnessRating: number; // 1-5
-  tags: string[]; // e.g., "confusing_question", "video_lag", "good_flow"
+  clarityRating: number;
+  relevanceRating: number;
+  fairnessRating: number;
+  tags: string[];
   comment: string;
   createdAt: string;
 }
@@ -338,17 +340,11 @@ export interface NextQuestionOutput {
   id: string;
   text: string;
   phase: string;
-  type?: 'master' | 'followup' | 'closing'; // Updated type literal
+  type?: 'master' | 'followup' | 'closing';
   targets?: string[];
   expected_answer_length_seconds?: number;
-  stop_listening_when?: {
-    silence_seconds: number;
-    max_answer_seconds: number;
-  };
-  why?: string;
 }
 
-// Transcript Alignment Types
 export interface AlignmentInput {
   questions_asked: Array<{question_id: string, text: string, start_sec: number, end_sec: number}>;
   candidate_speech_segments: Array<{segment_id: string, start_sec: number, end_sec: number}>;

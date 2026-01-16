@@ -1,3 +1,4 @@
+
 import { 
   User, UserRole, Company, Candidate, Program, Application, 
   InterviewSession, InterviewStatus, InterviewMode, 
@@ -71,6 +72,26 @@ const SEED_CANDIDATE: Candidate = {
   }
 };
 
+// Additional Mock Candidates to populate Company Dashboard
+const EXTRA_CANDIDATES: Candidate[] = [
+    {
+        id: 'cand2', userId: 'u_mock_2', fullName: 'Jordan Lee', phone: '+1 555 0102', location: 'Manila',
+        profile: { headline: 'Tech Support', summary: 'IT Grad', skills: ['Tech Savvy', 'English', 'Python', 'Troubleshooting'], languages: ['English'], certifications: [], work_history: [], education: [], gap_analysis: { gaps: [], job_hopping_risk: 'low' }, totals: { total_years_experience_estimate: 1, total_customer_service_years_estimate: 0, most_recent_role_title: 'Student', most_recent_company: 'Uni' }, extraction_quality: { confidence: 1, missing_fields: [] } }
+    },
+    {
+        id: 'cand3', userId: 'u_mock_3', fullName: 'Casey Smith', phone: '+1 555 0103', location: 'Remote',
+        profile: { headline: 'Sales Rep', summary: 'Driven sales agent', skills: ['Sales', 'Persuasion', 'Cold Calling'], languages: ['English'], certifications: [], work_history: [], education: [], gap_analysis: { gaps: [], job_hopping_risk: 'medium' }, totals: { total_years_experience_estimate: 3, total_customer_service_years_estimate: 3, most_recent_role_title: 'Sales Rep', most_recent_company: 'Solar Co' }, extraction_quality: { confidence: 1, missing_fields: [] } }
+    },
+    {
+        id: 'cand4', userId: 'u_mock_4', fullName: 'Taylor Doe', phone: '+1 555 0104', location: 'Remote',
+        profile: { headline: 'Admin Asst', summary: 'Organized admin', skills: ['Data Entry', 'Typing 80WPM', 'Excel'], languages: ['English'], certifications: [], work_history: [], education: [], gap_analysis: { gaps: [], job_hopping_risk: 'low' }, totals: { total_years_experience_estimate: 5, total_customer_service_years_estimate: 0, most_recent_role_title: 'Admin', most_recent_company: 'Logistics LLC' }, extraction_quality: { confidence: 1, missing_fields: [] } }
+    },
+    {
+        id: 'cand5', userId: 'u_mock_5', fullName: 'Morgan Freeman', phone: '+1 555 0105', location: 'New York',
+        profile: { headline: 'Customer Care', summary: 'Empathetic agent', skills: ['Customer Service', 'Empathy', 'De-escalation'], languages: ['English'], certifications: [], work_history: [], education: [], gap_analysis: { gaps: [], job_hopping_risk: 'low' }, totals: { total_years_experience_estimate: 2, total_customer_service_years_estimate: 2, most_recent_role_title: 'Support', most_recent_company: 'Helpdesk Inc' }, extraction_quality: { confidence: 1, missing_fields: [] } }
+    }
+];
+
 const SEED_PROGRAMS: Program[] = [
   {
     id: 'p1',
@@ -82,30 +103,30 @@ const SEED_PROGRAMS: Program[] = [
     headcountNeeded: 15,
     mustHaveSkills: ['Tech Savvy', 'English'],
     niceToHaveSkills: ['Network Basics'],
+    dealBreakers: ['No Tech Background', 'Job Hopping Risk'],
+    status: ProgramStatus.LIVE,
+    createdAt: new Date().toISOString()
+  },
+  {
+    id: 'p2',
+    companyId: 'c1',
+    title: 'Customer Success Outbound',
+    description: 'Outbound renewal calls for existing customers.',
+    location: 'Remote',
+    type: ProgramType.OUTBOUND_SALES,
+    headcountNeeded: 5,
+    mustHaveSkills: ['Sales', 'Persuasion'],
+    niceToHaveSkills: ['CRM'],
+    dealBreakers: ['Low Resilience', 'Communication Clarity Risk'],
     status: ProgramStatus.LIVE,
     createdAt: new Date().toISOString()
   }
 ];
 
 const SEED_FEEDBACK: InterviewFeedback[] = [
-  {
-    id: 'f1', candidateId: 'c_mock_1', interviewId: 'i_1', 
-    clarityRating: 2, relevanceRating: 5, fairnessRating: 5, 
-    tags: ['confusing_question'], comment: "The question about the internet outage was weirdly phrased.", 
-    createdAt: new Date().toISOString()
-  },
-  {
-    id: 'f2', candidateId: 'c_mock_2', interviewId: 'i_2', 
-    clarityRating: 4, relevanceRating: 4, fairnessRating: 5, 
-    tags: ['good_flow'], comment: "Smooth process.", 
-    createdAt: new Date().toISOString()
-  },
-  {
-    id: 'f3', candidateId: 'c_mock_3', interviewId: 'i_3', 
-    clarityRating: 2, relevanceRating: 3, fairnessRating: 4, 
-    tags: ['confusing_question', 'repetitive'], comment: "I felt like I answered the empathy part twice.", 
-    createdAt: new Date().toISOString()
-  }
+    { id: 'fb1', candidateId: 'u1', interviewId: 'int1', clarityRating: 5, relevanceRating: 5, fairnessRating: 5, tags: ['smooth_process'], comment: 'Very easy to use.', createdAt: new Date().toISOString() },
+    { id: 'fb2', candidateId: 'u2', interviewId: 'int2', clarityRating: 4, relevanceRating: 5, fairnessRating: 4, tags: ['good_ai'], comment: '', createdAt: new Date().toISOString() },
+    { id: 'fb3', candidateId: 'u3', interviewId: 'int3', clarityRating: 3, relevanceRating: 4, fairnessRating: 5, tags: ['confusing_question'], comment: 'The billing question was tricky.', createdAt: new Date().toISOString() }
 ];
 
 class MockDB {
@@ -119,13 +140,74 @@ class MockDB {
   }
 
   init() {
+    // Only init if not already present
     if (!localStorage.getItem('serenity_initialized')) {
+      const allCandidates = [SEED_CANDIDATE, ...EXTRA_CANDIDATES];
       this.set('users', SEED_USERS);
       this.set('companies', SEED_COMPANIES);
-      this.set('candidates', [SEED_CANDIDATE]);
+      this.set('candidates', allCandidates);
       this.set('programs', SEED_PROGRAMS);
-      this.set('interviews', []);
-      this.set('applications', []);
+      
+      // Generate mock interviews for extra candidates to populate dashboards
+      const mockInterviews: InterviewSession[] = EXTRA_CANDIDATES.map((c, i) => ({
+          id: `int_mock_${i}`,
+          candidateId: c.id,
+          mode: InterviewMode.VIDEO,
+          status: InterviewStatus.COMPLETE,
+          transcript: [],
+          questionScores: [],
+          scores: { 
+              communication: 0.7 + (Math.random() * 0.2), 
+              coherence: 0.8, 
+              empathy: i === 3 ? 0.9 : 0.6, 
+              deescalation: 0.6, 
+              process: i === 0 ? 0.9 : 0.5, 
+              stress: i === 1 ? 0.9 : 0.5, 
+              reliability: 0.8, 
+              sales: i === 1 ? 0.9 : 0.4, 
+              coachability: 0.7 
+          },
+          overallScore: 70 + (Math.random() * 20),
+          recommendation: i === 0 || i === 1 ? InterviewRecommendation.HIRE_READY : InterviewRecommendation.INTERVIEW_RECOMMENDED,
+          summaryForCompany: {
+              short_overview: i === 0 ? "Strong tech background." : i === 1 ? "Excellent sales drive." : "Solid potential.",
+              strengths: ["Communication"],
+              risks: [],
+              recommended_followup_questions: []
+          },
+          feedbackForCandidate: { positive: [], improve: [], detailed_insights: [], coaching_offers: [] },
+          riskFlags: [],
+          createdAt: new Date().toISOString()
+      }));
+
+      this.set('interviews', mockInterviews);
+      
+      // Generate applications for mock candidates
+      const mockApps: Application[] = [];
+      mockInterviews.forEach(int => {
+          SEED_PROGRAMS.forEach(prog => {
+               // Simple mock matching logic for seed
+               let score = 75;
+               if (prog.type === ProgramType.TECH_SUPPORT && int.scores.process > 0.8) score = 92;
+               if (prog.type === ProgramType.OUTBOUND_SALES && int.scores.sales > 0.8) score = 88;
+               
+               mockApps.push({
+                   id: `app_seed_${int.id}_${prog.id}`,
+                   candidateId: int.candidateId,
+                   programId: prog.id,
+                   status: score > 85 ? ApplicationStatus.SHORTLISTED : ApplicationStatus.SUGGESTED,
+                   matchScore: score,
+                   matchTier: score > 85 ? 'strong' : 'medium',
+                   matchBreakdown: { 
+                       must_have_overlap: 1, nice_to_have_overlap: 0.5, readiness_boost: 0, program_type_fit: 10, 
+                       why_this_match: ["Strong profile fit"], risks_for_this_program: [] 
+                   },
+                   createdAt: new Date().toISOString()
+               });
+          });
+      });
+
+      this.set('applications', mockApps);
       this.set('cvs', []);
       this.set('feedback', SEED_FEEDBACK);
       localStorage.setItem('serenity_initialized', 'true');
@@ -250,7 +332,39 @@ class MockDB {
         candidate: candidates.find(c => c.id === app.candidateId)!,
         interview: interviews.find(i => i.candidateId === app.candidateId)!
       }))
-      .filter(a => a.candidate && a.interview); // Safety filter
+      .filter(a => a.candidate && a.interview);
+  }
+
+  // Get ALL applications for a company (for Dashboard "Candidate Pool" view)
+  async getCompanyApplications(companyId: string): Promise<(Application & { candidate: Candidate, interview: InterviewSession, program: Program })[]> {
+    const programs = await this.getCompanyPrograms(companyId);
+    const programIds = new Set(programs.map(p => p.id));
+    const apps = this.get<Application[]>('applications', []);
+    const candidates = this.get<Candidate[]>('candidates', []);
+    const interviews = this.get<InterviewSession[]>('interviews', []);
+
+    return apps
+      .filter(a => programIds.has(a.programId))
+      .map(app => ({
+        ...app,
+        candidate: candidates.find(c => c.id === app.candidateId)!,
+        interview: interviews.find(i => i.candidateId === app.candidateId)!,
+        program: programs.find(p => p.id === app.programId)!
+      }))
+      .filter(a => a.candidate && a.interview && a.program);
+  }
+
+  // Update Application Decision
+  async updateApplicationStatus(appId: string, status: ApplicationStatus, reason?: string, note?: string) {
+    const apps = this.get<Application[]>('applications', []);
+    const idx = apps.findIndex(a => a.id === appId);
+    if (idx >= 0) {
+      apps[idx].status = status;
+      apps[idx].recruiterReason = reason;
+      apps[idx].recruiterNote = note;
+      apps[idx].updatedAt = new Date().toISOString();
+      this.set('applications', apps);
+    }
   }
 
   // Admin Actions

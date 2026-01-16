@@ -1,3 +1,4 @@
+
 import React, { useEffect, useState } from 'react';
 import { HashRouter as Router, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { useAuth } from './authContext';
@@ -7,11 +8,13 @@ import { Layout } from './components/Layout';
 // Pages
 import Landing from './pages/Landing';
 import Login from './pages/Login';
+import Pricing from './pages/Pricing';
 import CandidateDashboard from './pages/candidate/Dashboard';
 import InterviewPage from './pages/candidate/Interview';
 import UploadCV from './pages/candidate/UploadCV';
 import CompanyDashboard from './pages/company/Dashboard';
 import CompanyProgramDetail from './pages/company/ProgramDetail';
+import CompanyCandidateDetail from './pages/company/CandidateDetail';
 import CreateProgram from './pages/company/CreateProgram';
 import AdminDashboard from './pages/admin/Dashboard';
 
@@ -31,6 +34,7 @@ export default function App() {
     <Router>
       <Routes>
         <Route path="/" element={<Landing />} />
+        <Route path="/pricing" element={<Pricing />} />
         <Route path="/login" element={<Login />} />
         
         {/* Candidate Portal */}
@@ -64,6 +68,11 @@ export default function App() {
         <Route path="/company/programs/:id" element={
           <ProtectedRoute allowedRoles={[UserRole.COMPANY_USER]}>
             <Layout portal="company"><CompanyProgramDetail /></Layout>
+          </ProtectedRoute>
+        } />
+        <Route path="/company/applications/:appId" element={
+          <ProtectedRoute allowedRoles={[UserRole.COMPANY_USER]}>
+            <Layout portal="company"><CompanyCandidateDetail /></Layout>
           </ProtectedRoute>
         } />
 
